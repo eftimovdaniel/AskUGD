@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="mk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AskUGD — демо</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #f3f4f6;
+        color: #111827;
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 48px 24px;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin: 0 0 8px;
+      }
+      p {
+        margin: 0;
+        color: #6b7280;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>AskUGD</h1>
+      <p>
+        Демо страница за чат виџетот. Кликни на црвеното копче долу десно.
+        Backend (опционално): <code>http://127.0.0.1:8000</code>
+      </p>
+    </main>
+
+    <script
+      id="ugd-ai-agent-script"
+      src="./dist/custom.js"
+      data-api-url="http://127.0.0.1:8000"
+    ></script>
+  </body>
+</html>

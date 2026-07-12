@@ -1,0 +1,542 @@
+/* AskUGD — chat widget styles */
+
+:root {
+  --ugd-fab-right: 15px;
+  --ugd-fab-bottom: 40px;
+  --ugd-fab-launcher-size: 60px;
+}
+
+/* AskUGD chat widget */
+.ugd-ai-widget {
+  position: fixed !important;
+  right: var(--ugd-fab-right) !important;
+  bottom: var(--ugd-fab-bottom) !important;
+  z-index: 100;
+  font-family: Roboto, system-ui, -apple-system, sans-serif;
+  --ugd-asst-red: #D71920;
+  --ugd-asst-red-deep: #a81016;
+  --ugd-asst-red-rgb: 215, 25, 32;
+  --ugd-asst-online: #1fa350;
+  --ugd-asst-body: #ebecef;
+  --ugd-asst-panel-w: 400px;
+  --ugd-asst-panel-h: 580px;
+}
+.ugd-ai-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+.ugd-ai-panel {
+  display: none;
+  width: var(--ugd-asst-panel-w);
+  height: var(--ugd-asst-panel-h);
+  max-width: calc(100vw - 24px);
+  max-height: min(var(--ugd-asst-panel-h), calc(100vh - 180px));
+  background: var(--ugd-asst-body);
+  border-radius: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04), 0 16px 48px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.ugd-ai-panel.is-open {
+  display: flex;
+  flex-direction: column;
+}
+.ugd-ai-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 14px 14px 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #e31e24 0%, var(--ugd-asst-red) 45%, var(--ugd-asst-red-deep) 100%);
+  border-radius: 20px 20px 0 0;
+}
+.ugd-ai-panel-header-brand {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #fff;
+  color: #9ca3af;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.ugd-ai-header-person {
+  display: block;
+}
+.ugd-ai-header-logo {
+  display: block;
+  width: 95%;
+  height: 95%;
+  border-radius: 50%;
+  object-fit: contain;
+}
+.ugd-ai-panel-header-text {
+  flex: 1;
+  min-width: 0;
+}
+.ugd-ai-panel-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+.ugd-ai-panel-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.95;
+  line-height: 1.25;
+}
+.ugd-ai-status-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ugd-asst-online);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.ugd-ai-panel-header-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Elementor/Hello глобални `button` стилови — круг за + во header */
+.ugd-ai-widget button.ugd-ai-header-icon-btn {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
+  border-radius: 50% !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1 !important;
+  cursor: pointer;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  margin: 0 !important;
+  transition: background 0.15s;
+}
+.ugd-ai-widget button.ugd-ai-header-icon-btn.is-active {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: var(--ugd-asst-red) !important;
+  border-color: #fff !important;
+}
+.ugd-ai-widget button.ugd-ai-header-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.24) !important;
+}
+.ugd-ai-widget button.ugd-ai-header-icon-btn.is-active:hover {
+  background: #fff !important;
+}
+.ugd-ai-widget button.ugd-ai-header-icon-btn.ugd-ai-header-plus {
+  font-size: 1.35rem;
+  font-weight: 300;
+  line-height: 0 !important;
+}
+.ugd-ai-panel-body {
+  padding: 18px 16px 14px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 100px;
+  background: var(--ugd-asst-body);
+}
+.ugd-ai-intro {
+  text-align: center;
+  padding: 8px 4px 4px;
+}
+.ugd-ai-intro[hidden] {
+  display: none !important;
+}
+.ugd-ai-greeting {
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin: 0 0 10px;
+  color: #111827;
+}
+.ugd-ai-desc {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #6b7280;
+  margin: 0;
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.ugd-ai-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ugd-ai-msg-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 92%;
+}
+.ugd-ai-msg-row-agent {
+  align-self: flex-start;
+}
+.ugd-ai-msg-row-user {
+  align-self: flex-end;
+}
+.ugd-ai-avatar {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  padding: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.ugd-ai-msg {
+  margin: 0;
+  padding: 11px 14px;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  max-width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+.ugd-ai-msg-user {
+  align-self: flex-end;
+  background: var(--ugd-asst-red);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(var(--ugd-asst-red-rgb), 0.25);
+}
+.ugd-ai-msg-agent {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #1f2937;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.ugd-ai-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  flex: 0 1 auto;
+}
+.ugd-ai-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9ca3af;
+  animation: ugd-ai-typing-dot 1.05s ease-in-out infinite;
+}
+.ugd-ai-typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.ugd-ai-typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes ugd-ai-typing-dot {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  35% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ugd-ai-typing span {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+.ugd-ai-footer-form {
+  flex-shrink: 0;
+  padding: 12px 14px 16px;
+  background: var(--ugd-asst-body);
+  border-top: 1px solid #e5e7eb;
+}
+.ugd-ai-widget .ugd-ai-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 9999px;
+  background: #d1d5db;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.ugd-ai-widget .ugd-ai-input-wrap:focus-within {
+  background: linear-gradient(120deg, var(--ugd-asst-red), #ff6a4d, var(--ugd-asst-red));
+  box-shadow: 0 4px 18px rgba(var(--ugd-asst-red-rgb), 0.25);
+}
+.ugd-ai-widget .ugd-ai-input-wrap input,
+.ugd-ai-widget .ugd-ai-input-wrap input[type="text"] {
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  border: none !important;
+  border-radius: 9999px !important;
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 12px 50px 12px 16px !important;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.35;
+  background: #fff !important;
+  color: #111827;
+  box-shadow: none !important;
+  transition: none;
+}
+.ugd-ai-widget .ugd-ai-input-wrap input::placeholder {
+  color: #9ca3af;
+}
+.ugd-ai-widget .ugd-ai-input-wrap input:focus,
+.ugd-ai-widget .ugd-ai-input-wrap input[type="text"]:focus {
+  outline: none !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+}
+/* Elementor / тема често прават `button` квадратен — експлицитно круг + без padding */
+.ugd-ai-widget button.ugd-ai-send {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  min-height: 38px !important;
+  max-width: 38px !important;
+  max-height: 38px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 50% !important;
+  overflow: hidden;
+  background: var(--ugd-asst-red) !important;
+  color: #fff !important;
+  cursor: pointer;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 0 !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 4px 12px rgba(var(--ugd-asst-red-rgb), 0.32);
+  transition:
+    transform 0.12s,
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.ugd-ai-widget button.ugd-ai-send:hover {
+  background: #c00 !important;
+}
+.ugd-ai-widget button.ugd-ai-send:active {
+  transform: translateY(-50%) scale(0.96);
+}
+.ugd-ai-send-svg {
+  display: block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  color: #fff;
+  pointer-events: none;
+}
+.ugd-ai-widget button.ugd-ai-send:focus-visible {
+  outline: none !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 4px 12px rgba(var(--ugd-asst-red-rgb), 0.32),
+    0 0 0 3px rgba(var(--ugd-asst-red-rgb), 0.35);
+}
+.ugd-ai-fabs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+.ugd-ai-widget[data-open="true"] .ugd-ai-launcher-open {
+  display: none !important;
+}
+.ugd-ai-widget[data-open="false"] .ugd-ai-launcher-close {
+  display: none !important;
+}
+/* Elementor/Hello глобални `button` стилови */
+.ugd-ai-widget button.ugd-ai-launcher {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  position: relative;
+  width: var(--ugd-fab-launcher-size) !important;
+  height: var(--ugd-fab-launcher-size) !important;
+  min-width: var(--ugd-fab-launcher-size) !important;
+  min-height: var(--ugd-fab-launcher-size) !important;
+  max-width: var(--ugd-fab-launcher-size) !important;
+  max-height: var(--ugd-fab-launcher-size) !important;
+  flex-shrink: 0;
+  border-radius: 50% !important;
+  border: 3px solid #fff !important;
+  background: var(--ugd-asst-red) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1), 0 8px 28px rgba(var(--ugd-asst-red-rgb), 0.4);
+  cursor: pointer;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 0 !important;
+  font-size: 1.65rem;
+  font-weight: 300;
+  transition: box-shadow 0.2s, transform 0.12s, background 0.15s;
+}
+.ugd-ai-launcher-icon {
+  display: block;
+  width: calc(var(--ugd-fab-launcher-size) - 18px);
+  height: calc(var(--ugd-fab-launcher-size) - 18px);
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+.ugd-ai-widget[data-open="true"] .ugd-ai-launcher-icon {
+  display: none;
+}
+.ugd-ai-widget button.ugd-ai-launcher:hover {
+  background: #c00 !important;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.25);
+}
+.ugd-ai-widget button.ugd-ai-launcher:active {
+  transform: scale(0.96);
+}
+.ugd-ai-launcher-open {
+  position: relative;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.ugd-ai-launcher-close {
+  line-height: 1;
+  padding-bottom: 2px;
+}
+/* AI АГЕНТ ЛАУНЧЕР АНИМАЦИЈА (внимание, кога е затворен) */
+.ugd-ai-widget button.ugd-ai-launcher::before,
+.ugd-ai-widget button.ugd-ai-launcher::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--ugd-asst-red);
+  opacity: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: ugd-ai-pulse-ring 2.8s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+.ugd-ai-widget button.ugd-ai-launcher::after {
+  animation-delay: 1.4s;
+}
+@keyframes ugd-ai-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+.ugd-ai-widget .ugd-ai-launcher-open::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    rgba(var(--ugd-asst-red-rgb), 0),
+    var(--ugd-asst-red),
+    rgba(var(--ugd-asst-red-rgb), 0) 55%
+  );
+  -webkit-mask: radial-gradient(circle, transparent 28px, #000 29px);
+  mask: radial-gradient(circle, transparent 28px, #000 29px);
+  animation: ugd-ai-launcher-arc 2.4s linear infinite;
+}
+@keyframes ugd-ai-launcher-arc {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@keyframes ugd-ai-icon-breathe {
+  0%,
+  82%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  89% {
+    transform: translateY(-3px) scale(1.06);
+  }
+  95% {
+    transform: translateY(0) scale(0.97);
+  }
+}
+.ugd-ai-widget[data-open="false"] .ugd-ai-launcher-icon {
+  animation: ugd-ai-icon-breathe 6.5s ease-in-out infinite;
+}
+.ugd-ai-widget[data-open="true"] button.ugd-ai-launcher::before,
+.ugd-ai-widget[data-open="true"] button.ugd-ai-launcher::after,
+.ugd-ai-widget[data-open="true"] .ugd-ai-launcher-open::before {
+  content: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ugd-ai-widget button.ugd-ai-launcher::before,
+  .ugd-ai-widget button.ugd-ai-launcher::after,
+  .ugd-ai-widget .ugd-ai-launcher-open::before {
+    animation: none;
+    content: none;
+  }
+  .ugd-ai-widget[data-open="false"] .ugd-ai-launcher-icon {
+    animation: none;
+  }
+}
+@media (max-width: 600px) {
+  :root {
+    --ugd-fab-right: 12px;
+  }
+  .ugd-ai-widget {
+    --ugd-asst-panel-w: min(400px, calc(100vw - 20px));
+    --ugd-asst-panel-h: min(580px, calc(100vh - 180px));
+  }
+}
+/* ============================================================================ ИЗГЛЕД: УГД AI асистент — КРАЈ на CSS за агентот ============================================================================ */
