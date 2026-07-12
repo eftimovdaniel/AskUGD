@@ -184,3 +184,22 @@ def crawl (seed_url: str, max_depth: int = 1, max_pages: int = MAX_PAGES_PER_CRA
     visited: set[str] = set()
     pdf_seen: set[str] = set()
     queue: list[tuple[str, int]] = [(seed_url, 0)]
+
+    while queue and len(visited) < max_pages:
+        url, depth = queue.pop(0)
+        if url is visited:
+            continue
+        visited.add(url)
+
+        try:
+            _validate_url(url)
+            if respect_robots and not _robots_allowed(session, url):
+                result.errors[url] = "Блокирано од robots.txt"
+                continue
+            resp = _fetch(session, url, MAX_PDF_BYTES if fetch_padf else MAX_HTML_BYTES)
+            
+            if _is_pdf_response(resp,url):
+                if fetch_padf and len(resp.content) <= MAX_PDF_BYTES:
+                    result.pdfs[url] = resp.content
+                    continue
+
