@@ -1,0 +1,14 @@
+@font-face {
+  font-family: 'Play';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/play/v21/6aez4K2oVqwIvtU2Gg.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Play';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/play/v21/6ae84K2oVqwItm4TCpAy3w.ttf) format('truetype');
+}

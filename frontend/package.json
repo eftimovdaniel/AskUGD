@@ -3,8 +3,7 @@
   "private": true,
   "scripts": {
     "build": "esbuild src/main.ts --bundle --outfile=dist/custom.js --format=iife --target=es2020",
-    "watch": "esbuild src/main.ts --bundle --outfile=dist/custom.js --format=iife --target=es2020 --watch",
-    "start": "npm run build && npx --yes serve . -l 3000"
+    "watch": "esbuild src/main.ts --bundle --outfile=dist/custom.js --format=iife --target=es2020 --watch"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

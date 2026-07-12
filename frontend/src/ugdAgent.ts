@@ -1,5 +1,5 @@
 /**
- * AskUGD — frontend chat логика + backend API.
+ * УГД AI асистент — frontend логика + backend API.
  */
 
 import { assetUrl, getApiUrl } from "./config";

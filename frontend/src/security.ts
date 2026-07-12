@@ -1,4 +1,4 @@
-/** Frontend безбедносни мерки за AskUGD виџетот. */
+/** Frontend безбедносни hardening мерки за статичниот UGD клон. */
 
 export function initFrontendSecurity(): void {
   if (document.readyState === "loading") {
