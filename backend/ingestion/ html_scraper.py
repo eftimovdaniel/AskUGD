@@ -202,4 +202,37 @@ def crawl (seed_url: str, max_depth: int = 1, max_pages: int = MAX_PAGES_PER_CRA
                 if fetch_padf and len(resp.content) <= MAX_PDF_BYTES:
                     result.pdfs[url] = resp.content
                     continue
-
+                ctype = (resp.headers.get("Content=Type") or "").lower()
+                if ctype and not any(t in ctype for t in HTML_CONTENT_TYPES):
+                    continue
+                if len(resp.content) > MAX_HTML_BYTES:
+                    result.errors[url] = "HTML содржината е предолга"
+                    continue
+                page, html_links, pdf_links = _parse_html(resp , url)
+                if page.text:
+                    result.pages.append(page)
+                if fetch_padf:
+                    for p in pdf_links:
+                        if p in pdf_seen or not _same_domain(p, base_netloc):
+                            continue
+                        pdf_seen.add(p)
+                        try:
+                            result.pdfs[p] = downloade_pdf(p, session)
+                            time.sleep(CRAWL_DELAY_SECONDS)
+                        except (ScrapeError, requests.RequestException) as e:
+                            result.errors[p] = str(e)
+                        
+                if depth < max_depth:
+                    for link in html_links:
+                        if link not in visited and _same_domain(link, base_netloc):
+                            queue.append((link, depth +1))
+        except (ScrapeError, requests.RequestException) as e:
+            result.errors[url] = str(e)
+            logger.warning("Пресконкнат %s: %s", url, e)
+        time.sleep(CRAWL_DELAY_SECONDS)
+    logger.info("Crawl %s: %d страници, %d PDF-ови, %d грешки", seed_url, len(result.pages), len(result.pdfs), len(result.errors))
+    return result
+if __name__ == "__main__":
+    import sys
+    logging.basicConfig(level=logging.INFO)
+    print (scrape_url(sys.argv[1])[:2000])
