@@ -1,238 +1,212 @@
 from __future__ import annotations
-from http.client import REQUEST_TIMEOUT
-import ipaddress
+import argparse
+import hashlib
 import logging
-import time
-import socket
-import urllib.robotparser
-from dataclasses import dataclass, field
-from urllib.parse import urlparse, urljoin, urldefrag
-import requests
-from bs4 import BeautifulSoup
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+import yaml
+from app.config import settings
+from app.core.vectorstore import ensure_collection, upsert_chunks, delete_by_source
+from ingestion.chunker import Chunk, chunk_document
+from ingestion.html_scraper import crawl, download_pdf, scrape_url
+from ingestion.pdf_loader import PdfError, load_pdf, load_pdf_bytes
 
-logger = logging.getLogger(__name__)
-USER_AGENT = "AskUGD (+https://ugd.edu.mk)"
-MAX_HTML_BYTES = 5 * 1024 * 1024    # 5 MB по HTML страница
-MAX_PDF_BYTES = 30 * 1024 * 1024    # 30 MB по PDF
-MAX_PAGES_PER_CRAWL = 30            # хард лимит страници по seed URL
-CRAWL_DELAY_SECONDS = 0.5           # учтивост кон серверот
-RETRY_TOTAL = 3
-RETRY_BACKOFF = 0.5
-ALLOWED_SCHEMES = frozenset({"http", "https"})
-HTML_CONTENT_TYPES = ("text/html", "application/xhtml+xml")
+logger = logging.getLogger("ingestion")
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+PDF_DIR = DATA_DIR / "pdfs"
+SOURCES_YAML = DATA_DIR / "sources.yaml"
+PDF_MANIFEST = DATA_DIR / "pdfs.yaml"
+DEFAULT_CRAWL_DEPTH = 1
+DEFAULT_CRAWL_PAGES = 30
 
-# Тагови што се шум за retrieval
-_STRIP_TAGS = ["script", "style", "nav", "footer", "header", "noscript", "iframe", "form", "svg", "aside", "button"]
+class Stats:
+   
+    def __init__(self) -> None:
+        self.chunks = 0
+        self.sources_ok = 0
+        self.failures: list[tuple[str, str]] = []
 
-@dataclass 
-class Page:
-    url: str
-    title: str
-    text: str
+    def ok(self, n_chunks: int) -> None:
+        self.chunks += n_chunks
+        self.sources_ok += 1
 
-@dataclass
-class CrewResult:
-    pages: list[Page] = field(default_factory=list)
-    pdfs: dict[str, bytes] = field(default_factory=dict)
-    errors: dict[str, str] = field(default_factory=dict)
+    def fail(self, source: str, reason: str) -> None:
+        self.failures.append((source, reason))
+        logger.error("Неуспех за %s: %s", source, reason)
 
-class ScrapeError(Exception):
-    """Грешка при преземање на HTML или PDF содржина од URL."""
+def _stable_id(source: str, index: int, text: str) -> str:
+    h = hashlib.sha256(f"{source}:{index}:{text}".encode("utf-8")).hexdigest()
+    return str(uuid.UUID(h[:32]))
 
-def _validate_url(url: str) -> bool:
-    url, = urldefrag(url)  # отстрани фрагментот од URL
-    parsed = urlparse(url)
-    if parsed.scheme not in ALLOWED_SCHEMES:
-        raise ScrapeError(f"Недозволен шема {parsed.scheme}, само http/https)")
-    if not parsed.hostname:
-        raise ScrapeError(f"Недозволен URL без hostname: {url}")
-    if parsed.hostname or parsed.password:
-        raise ScrapeError(f"Недозволен URL со username/password: {url}")
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+def _load_yaml(path: Path) -> dict:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f"{path.name}: очекуван mapping на највисоко ниво")
+    return data
+
+def _load_pdf_manifest() -> dict[str, dict]:
+    if not PDF_MANIFEST.exists():
+        return {}
     try:
-        info = socket.getaddrinfo(parsed.hostname, parsed.port or 0, proto=socket.IPPROTO_TCP)
-    except socket.gaierror as e:
-        raise ScrapeError(f"DNS грешка за {parsed.hostname}: {e}")  
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if (ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
-            raise ScrapeError(
-            f"'{parsed.hostname}' не е дозволена адреса (SSRF заштита)"
-        )
-    return url
-
-def _same_domain (url: str, base_url: str) -> bool:
-    host = (urlparse(url).hostname or "").lower()
-    base = base.netloc.lower()
-    return host == base or host.endswith("." + base)
-
-def _make_session() -> requests.Session:
-    s = requests.Session()
-    s.headers.update ({"User-Agent": USER_AGENT,"Accept": "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.5"})
-    retry = Retry(total=RETRY_TOTAL, backoff_factor=RETRY_BACKOFF, status_forcelist=(429, 500, 502, 503, 504), allowed_methods=frozenset({"GET", "HEAD"}))
-    adapte = HTTPAdapteR (max_retries=retry)
-    s.mount("http://", adapte)
-    s.mount("https://", adapte)
-    s.max_redirects = 5
-    return s
-
-def _fetch(session: requests.Session, url: str, max_bytes: int) ->requests.Response:
-    resp = session.get(url, timeout = REQUSEST_TIMEOUT, stream=True)
-    resp.raise_for_status()
-    if resp.url != url:
-        _validate_url(resp.url)
-    declared = resp.header.get("Content-Length")
-    if declared and declared.isdigit() and int (declared) > max_bytes:
-        resp.close()
-        raise ScrapeError(f"Одговорот е преголем ({declared} B > {max_bytes} B)")
-    body = bytearray()
-    for chunk in resp.iter_content(chunk_size=65536):
-        body.extend(chunk)
-    if len(body)> max_bytes:
-            resp.close()
-            raise ScrapeError(f"Одговорот е преголем ({len(body)} B > {max_bytes} B)")
-    resp._Ccontent = bytes(body)
-    return resp
-
-def _robots_allowed(session: requests.Session, url: str)-> bool:
-    parsed = urlparse(url)
-    robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-    rp = urllib.robotparser.RobotFileParser()
-    try:
-        resp = session.get(robots_url, timeout=REQUEST_TIMEOUT)
-        if resp.status_code >= 400:
-            return True
-        rp.parse(resp.text.splitlines())
-        return rp.can_fetch(USER_AGENT, url)
-    except requests.RequestException:
-        return True
-
-def _table_to_markdown (table) -> str:
-    rows = []
-    for tr in table.find_all("tr"):
-        cells = [c.get_text(" ", strip = True).replace("|", "/")
-                 for c in tr.find_all(["th", "td"])]
-        if any(cells):
-            rows.append("| " + " | ".join(cells) + " |")
-        if not rows:
-            return ""
-        if len(rows) > 2:
-            n_cols = rows[0].count("|") - 1
-            rows.insert(1, "|" + "---|" * max(n_cols, 1))
-        return "\n".join(rows)
-
-def _extract_text(soup: BeautifulSoup) -> str:
-    for tag in soup(_STRIP_TAGS):
-        tag.decompose()
-    for table in soup.find_all("table"):
-        md = _table_to_markdown(table)
-        table.replace_with(soup.new_string("\n" + md + "\n")
-                           if md else "")
-        main = soup.find("main") or soup.find("article") or soup.body
-        text = main.get_text(separator="\n") if main else soup.get_text("\n") 
-        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-        return "\n".join(lines)
-
-def _parse_html(resp: requests.Response) -> tuple[str, str]:
-    resp.encoding = resp.apparent_encoding or "utf-8"
-    soup = BeautifulSoup(resp.text, "html.parser")
-    title_tag = soup.find("title")
-    title = title.tag.get_text(strip=True) if title_tag else url
-    html_links, pdf_links = [], []
-    for a in soup.find_all("a", href = True):
-        href = urljoin(url, a["href"].strip())
-        href,_ = urldefrag(hred)
-        if urlparse(href).scheme not in ALLOWED_SCHEMES:
-            continue
-        if urlparse(href).path.lower().endswith(".pdf"):
-            pdf_link.append(href)
+        cfg = _load_yaml(PDF_MANIFEST)
+    except (yaml.YAMLError, ValueError) as e:
+        logger.warning("Невалиден %s — игнориран: %s", PDF_MANIFEST.name, e)
+        return {}
+    manifest = {}
+    for item in cfg.get("pdfs", []):
+        if isinstance(item, dict) and item.get("file"):
+            manifest[item["file"]] = item
         else:
-            html_links.append(href)
+            logger.warning("Прескокнат невалиден запис во pdfs.yaml: %r", item)
+    return manifest
 
-    return Page (url=url, title=title, text=_extract_text(soup)), html_links, pdf_links
+def _push(chunks: list[Chunk], source: str, dry_run: bool) -> int:
+    if not chunks:
+        return 0
+    if dry_run:
+        logger.info("[dry-run] %s: %d парчиња (не се запишани)", source, len(chunks))
+        return len(chunks)
+    ts = _now()
+    texts, metas, ids = [], [], []
+    for i, c in enumerate(chunks):
+        c.metadata["ingested_at"] = ts
+        texts.append(c.text)
+        metas.append(c.metadata)
+        ids.append(_stable_id(source, i, c.text))
+    upsert_chunks(texts, metas, ids)
+    return len(chunks)
 
-def _is_pdf_response(resp:requests.Response, url: str) -> bool:
-    ctype = (resp.headers.get("Content-Type") or "").lower()
-    return "application/pdf" in ctype or urlparse(url).path.lower().endswith(".pdf")
+def _replace_source(chunks: list[Chunk], source: str, dry_run: bool) -> int:
+    if not chunks:
+        logger.warning("%s: 0 парчиња — старите податоци остануваат недопрени", source)
+        return 0
+    if not dry_run:
+        delete_by_source(source)
+    return _push(chunks, source, dry_run)
 
-def scrape_url(url: str, session: requests.Session |None = None) -> str:
-    url = _validate_url(url)
-    session = session or _make_session()
-    resp = _fetch(session, url, MAX_HTML_BYTES)
-    ctype = (resp.headers.get("Content_Type") or "").lower()
-    if ctype and not any (t in ctype for t in HTML_CONTENT_TYPES):
-        raise ScrapeError(f"Неочекуван Content-Type '{ctype}' за {url}")
-    page, _, = _parse_html(resp, url)
-    return page.text
+def ingest_pdfs(stats: Stats, dry_run: bool) -> None:
+    if not PDF_DIR.exists():
+        logger.warning("Нема папка %s", PDF_DIR)
+        return
+    manifest = _load_pdf_manifest()
+    pdf_files = sorted(PDF_DIR.glob("*.pdf"))
+    if not pdf_files:
+        logger.warning("Нема PDF фајлови во %s", PDF_DIR)
+    for pdf in pdf_files:
+        source = pdf.name
+        try:
+            meta = manifest.get(source, {})
+            text = load_pdf(pdf)
+            chunks = chunk_document(
+                text, source=source, doc_type="pdf",
+                title=meta.get("title") or source, url=meta.get("url"),
+            )
+            n = _push(chunks, source, dry_run)
+            stats.ok(n)
+            logger.info("[+] %s: %d парчиња", source, n)
+        except Exception as e:  # noqa: BLE001 — изолирај грешка по фајл
+            stats.fail(source, str(e))
 
-def downloade_pdf(url: str, session: requests.Session | None=None) -> bytes:
-    url = _validate_url(url)
-    session = session or _make_session()
-    resp = _fetch(session, url, MAX_PDF_BYTES)
-    if not _is_pdf_response(resp, url):
-        raise ScrapeError(f"{url} не врати PDF содржина")
-    return resp.content
+def _ingest_crawled_pdf(url: str, data: bytes, stats: Stats, dry_run: bool) -> None:
+    try:
+        text = load_pdf_bytes(data, name=url)
+        title = Path(url.split("?")[0]).name or url
+        chunks = chunk_document(text, source=url, doc_type="pdf", title=title, url=url)
+        n = _replace_source(chunks, url, dry_run)
+        stats.ok(n)
+        logger.info("[+] (pdf) %s: %d парчиња", url, n)
+    except PdfError as e:
+        stats.fail(url, str(e))
 
-def crawl (seed_url: str, max_depth: int = 1, max_pages: int = MAX_PAGES_PER_CRAWL, fetch_padf:bool = True, respect_robots: bool = True) -> CrewResult:
-    seed_url - _validate_url(seed_url)
-    base_netloc - urlparse(seed_url).hostname or ""
-    if base_netloc.startswith("www."):
-        base_netloc - base_netloc[4:]
-    session = _make_session()
-    result = CrawlResult()
-    visited: set[str] = set()
-    pdf_seen: set[str] = set()
-    queue: list[tuple[str, int]] = [(seed_url, 0)]
 
-    while queue and len(visited) < max_pages:
-        url, depth = queue.pop(0)
-        if url is visited:
+def _ingest_page(url: str, title: str, text: str, stats: Stats, dry_run: bool) -> None:
+    chunks = chunk_document(text, source=url, doc_type="web", title=title, url=url)
+    n = _replace_source(chunks, url, dry_run)
+    stats.ok(n)
+    logger.info("[+] %s: %d парчиња", title, n)
+
+
+def ingest_web(stats: Stats, dry_run: bool) -> None:
+    if not SOURCES_YAML.exists():
+        logger.warning("Нема %s", SOURCES_YAML)
+        return
+    try:
+        cfg = _load_yaml(SOURCES_YAML)
+    except (yaml.YAMLError, ValueError) as e:
+        stats.fail(SOURCES_YAML.name, f"невалиден YAML: {e}")
+        return
+
+    for src in cfg.get("web_sources", []):
+        if not isinstance(src, dict) or not src.get("url"):
+            stats.fail("sources.yaml", f"невалиден запис (нема url): {src!r}")
             continue
-        visited.add(url)
+        url = str(src["url"]).strip()
+        title = src.get("title") or url
 
         try:
-            _validate_url(url)
-            if respect_robots and not _robots_allowed(session, url):
-                result.errors[url] = "Блокирано од robots.txt"
-                continue
-            resp = _fetch(session, url, MAX_PDF_BYTES if fetch_padf else MAX_HTML_BYTES)
-            
-            if _is_pdf_response(resp,url):
-                if fetch_padf and len(resp.content) <= MAX_PDF_BYTES:
-                    result.pdfs[url] = resp.content
-                    continue
-                ctype = (resp.headers.get("Content=Type") or "").lower()
-                if ctype and not any(t in ctype for t in HTML_CONTENT_TYPES):
-                    continue
-                if len(resp.content) > MAX_HTML_BYTES:
-                    result.errors[url] = "HTML содржината е предолга"
-                    continue
-                page, html_links, pdf_links = _parse_html(resp , url)
-                if page.text:
-                    result.pages.append(page)
-                if fetch_padf:
-                    for p in pdf_links:
-                        if p in pdf_seen or not _same_domain(p, base_netloc):
-                            continue
-                        pdf_seen.add(p)
-                        try:
-                            result.pdfs[p] = downloade_pdf(p, session)
-                            time.sleep(CRAWL_DELAY_SECONDS)
-                        except (ScrapeError, requests.RequestException) as e:
-                            result.errors[p] = str(e)
-                        
-                if depth < max_depth:
-                    for link in html_links:
-                        if link not in visited and _same_domain(link, base_netloc):
-                            queue.append((link, depth +1))
-        except (ScrapeError, requests.RequestException) as e:
-            result.errors[url] = str(e)
-            logger.warning("Пресконкнат %s: %s", url, e)
-        time.sleep(CRAWL_DELAY_SECONDS)
-    logger.info("Crawl %s: %d страници, %d PDF-ови, %d грешки", seed_url, len(result.pages), len(result.pdfs), len(result.errors))
-    return result
+            if url.split("?")[0].lower().endswith(".pdf"):
+                # директен PDF линк во sources.yaml
+                data = download_pdf(url)
+                text = load_pdf_bytes(data, name=url)
+                chunks = chunk_document(text, source=url, doc_type="pdf",
+                                        title=title, url=url)
+                n = _replace_source(chunks, url, dry_run)
+                stats.ok(n)
+                logger.info("[+] (pdf) %s: %d парчиња", title, n)
+            elif src.get("crawl"):
+                result = crawl(
+                    url,
+                    max_depth=int(src.get("max_depth", DEFAULT_CRAWL_DEPTH)),
+                    max_pages=int(src.get("max_pages", DEFAULT_CRAWL_PAGES)),
+                    fetch_pdfs=bool(src.get("fetch_pdfs", True)),
+                )
+                for page in result.pages:
+                    page_title = page.title if page.url != url else title
+                    _ingest_page(page.url, page_title, page.text, stats, dry_run)
+                for pdf_url, data in result.pdfs.items():
+                    _ingest_crawled_pdf(pdf_url, data, stats, dry_run)
+                for bad_url, reason in result.errors.items():
+                    logger.warning("Прескокнато при crawl: %s (%s)", bad_url, reason)
+            else:
+                text = scrape_url(url)
+                _ingest_page(url, title, text, stats, dry_run)
+        except Exception as e:  # noqa: BLE001 — изолирај грешка по извор
+            stats.fail(url, str(e))
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--only", choices=["pdf", "web"])
+    ap.add_argument("--dry-run", action="store_true", help="scrape + chunk без пишување во Qdrant")
+    ap.add_argument("-v", "--verbose", action="store_true")
+    args = ap.parse_args()
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    stats = Stats()
+    if not args.dry_run:
+        ensure_collection()
+
+    if args.only in (None, "pdf"):
+        ingest_pdfs(stats, args.dry_run)
+    if args.only in (None, "web"):
+        ingest_web(stats, args.dry_run)
+
+    logger.info("Вкупно %d парчиња од %d извори во '%s' (hybrid=%s)%s", stats.chunks, stats.sources_ok, settings.qdrant_collection, settings.use_hybrid, " [dry-run]" if args.dry_run else "")
+    if stats.failures:
+        logger.error("Неуспешни извори (%d):", len(stats.failures))
+        for source, reason in stats.failures:
+            logger.error("  - %s: %s", source, reason)
+        return 1
+    return 0
+
 if __name__ == "__main__":
-    import sys
-    logging.basicConfig(level=logging.INFO)
-    print (scrape_url(sys.argv[1])[:2000])
+    sys.exit(main())
