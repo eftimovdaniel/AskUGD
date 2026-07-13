@@ -1,0 +1,14 @@
+- question: "Како да се запишам на семестар?"
+  expected_source: "Upis_na_semestar"
+
+- question: "Што ми треба за заверка на семестар?"
+  expected_source: "Zaverka_na_semestar"
+
+- question: "Како да аплицирам за стипендија?"
+  expected_source: "Stipedija"
+
+- question: "Каде можам да го проверам моето студентско досие?"
+  expected_source: "Proverka_studentsko_dosie"
+
+- question: "How do I enroll in a semester?"
+  expected_source: "Upis_na_semestar"
