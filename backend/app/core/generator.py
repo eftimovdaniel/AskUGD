@@ -40,7 +40,7 @@ def _build_context(chunks: list[dict]) -> str:
         lable = p.get("title", p.get("source", "?"))
         article = f" | {p['article_no']}" if p.get("article_no") else ""
         text = c.get("text", "").replace("<", "&lt;").replace(">", "&gt;")
-        parts.append(f'<doc id="{i}" source="{label}{article}">\n{text}\n</doc>')
+        parts.append(f'<doc id="{i}" source="{lable}{article}">\n{text}\n</doc>')
     return "<context>\n" + "\n".join(parts) + "\n<context>"
 
 def _build_messages (question: str, chunks: list[dict],history: list[dict]) -> list[dict]:
@@ -72,7 +72,7 @@ def generate (question: str, chunks: list[dict], history: list[dict] | None = No
 
 def stream_generate (question: str, chunks: list[dict], history: list[dict] | None = None) -> Iterator(str):
     messages = _build_messages(question, chunks, history or [])
-    stream = get_llm_client().chat/completions.create(
+    stream = get_llm_client().chat.completions.create(
         model = settings.llm_model,
         messages = messages,
         temperature=settings.llm_temperature,
