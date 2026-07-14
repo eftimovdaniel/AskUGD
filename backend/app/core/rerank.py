@@ -29,5 +29,5 @@ def rerank(query: str, documents: list[str]) -> list[float] | None:
         raw_scores = list(encoder.rerank(query, documents))
         return [1.0 / (1.0 + math.exp(score) for score in raw_scores)]
     except Exception as error:
-        logger.error("Rerank падна (%s) — продолжувам без rerank", error)
+        logger.error("Rerank падна (%s) — продолжувам без rerank", error )
         return None
