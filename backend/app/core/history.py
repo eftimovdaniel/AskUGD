@@ -86,4 +86,5 @@ class RedisHistoryStore:
 if settings.redis_url:
     history = RedisHistoryStore(settings.redis_url, ttl=settings.history_ttl_seconds, max_turns=settings.history_max_turns)
 else:
-    history = HistoryStore(ttl=settings.history_ttl_seconds, max_turns=settings.history_max_turns)
+    history = HistoryStore(ttl=settings.history_ttl_seconds,
+                            max_turns=settings.history_max_turns)
