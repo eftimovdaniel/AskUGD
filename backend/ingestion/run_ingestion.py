@@ -96,18 +96,30 @@ def ingest_pdfs(statistika: Stats, dry_run: bool) -> None:
         logger.warning("Нема папка %s", PDF_DIR)
         return
     manifest_pdf = _load_pdf_manifest()
-    pdf_fajlovi = sorted(PDF_DIR.glob("*.pdf"))
+    # rglob = rekurzivno niz SITE podpapki (ciklus/fakultet/nasoka/...)
+    pdf_fajlovi = sorted(PDF_DIR.rglob("*.pdf"))
     if not pdf_fajlovi:
         logger.warning("Нема PDF фајлови во %s", PDF_DIR)
     for pdf in pdf_fajlovi:
-        izvor = pdf.name
+        # relativna pateka kako izvor — unikatna i koga isto ime se javuva
+        # vo razlichni papki (pr. dva fakulteta so "struktura.pdf")
+        izvor = str(pdf.relative_to(PDF_DIR))
         try:
-            meta_zapis = manifest_pdf.get(izvor, {})
+            meta_zapis = manifest_pdf.get(izvor, {}) or manifest_pdf.get(pdf.name, {})
             tekst = load_pdf(pdf)
             parchinja = chunk_document(
                 tekst, source=izvor, doc_type="pdf",
-                title=meta_zapis.get("title") or izvor, url=meta_zapis.get("url"),
+                title=meta_zapis.get("title") or pdf.stem, url=meta_zapis.get("url"),
             )
+            # strukturata na papkite -> metadata (za filtriranje i podobar prikaz)
+            pateka_delovi = pdf.relative_to(PDF_DIR).parts[:-1]
+            for parche in parchinja:
+                if len(pateka_delovi) >= 1:
+                    parche.metadata["ciklus"] = pateka_delovi[0]
+                if len(pateka_delovi) >= 3:
+                    parche.metadata["fakultet"] = pateka_delovi[2]
+                if len(pateka_delovi) >= 4:
+                    parche.metadata["nasoka"] = pateka_delovi[3]
             broj_parchinja = _push(parchinja, izvor, dry_run)
             statistika.ok(broj_parchinja)
             logger.info("[+] %s: %d парчиња", izvor, broj_parchinja)
