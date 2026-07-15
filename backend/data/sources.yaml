@@ -1,0 +1,21 @@
+web_sources:
+  - url: https://www.ugd.edu.mk/upisi/prv-ciklus-studii/
+    title: Упис — прв циклус студии
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/upisi/vtor-ciklus-studii/
+    title: Упис — втор циклус студии
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/upisi/tret-ciklus-studii/
+    title: Упис — трет циклус студии
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
