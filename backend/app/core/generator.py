@@ -1,23 +1,11 @@
-"""LLM генерација (OpenAI-компатибилен API — OpenAI, Groq, OpenRouter...):
-XML изолација на контекст, anti-hallucination системски промпт,
-retries со backoff, streaming.
-
-Провајдерот се менува САМО преку .env (LLM_API_KEY / LLM_BASE_URL / LLM_MODEL):
-    OpenAI prod:  LLM_BASE_URL=https://api.openai.com/v1      LLM_MODEL=gpt-4o-mini
-    Groq dev:     LLM_BASE_URL=https://api.groq.com/openai/v1 LLM_MODEL=llama-3.3-70b-versatile
-"""
 from __future__ import annotations
-
 import logging
 import time
 from typing import Iterator
-
 from openai import OpenAI
-
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
 _client: OpenAI | None = None
 _RETRIES_BACKOFF = 1.0
 
@@ -37,7 +25,6 @@ SYSTEM_PROMPT = """Ти си AskUGD — асистент за студенти �
 6. На крај наведи извор ако е достапен (наслов на документ, член).
 """
 
-
 def get_llm_client() -> OpenAI:
     global _client
     if _client is None:
@@ -50,7 +37,6 @@ def get_llm_client() -> OpenAI:
 
 
 def _build_context(parchinja: list[dict]) -> str:
-    """Спакувај ги парчињата во XML — изолација од инструкции."""
     delovi = []
     for dok_br, parche in enumerate(parchinja, 1):
         podatoci = parche.get("payload", {})
@@ -71,10 +57,8 @@ def _build_messages(prashanje: str, parchinja: list[dict],
     poraki.append({"role": "user", "content": korisnicka_poraka})
     return poraki
 
-
 def generate(prashanje: str, parchinja: list[dict],
              istorija: list[dict] | None = None) -> str:
-    """Комплетен одговор (не-streaming), со retries."""
     poraki = _build_messages(prashanje, parchinja, istorija or [])
     posledna: Exception | None = None
     for attempt in range(1, settings.llm_retries + 1):
@@ -96,9 +80,7 @@ def generate(prashanje: str, parchinja: list[dict],
     raise RuntimeError(f"LLM не одговори по {settings.llm_retries} обиди: {posledna}") from posledna
 
 
-def stream_generate(prashanje: str, parchinja: list[dict],
-                    istorija: list[dict] | None = None) -> Iterator[str]:
-    """Streaming одговор — yield-а токени. Грешките ги фаќа повикувачот."""
+def stream_generate(prashanje: str, parchinja: list[dict], istorija: list[dict] | None = None) -> Iterator[str]:
     poraki = _build_messages(prashanje, parchinja, istorija or [])
     stream = get_llm_client().chat.completions.create(
         model=settings.llm_model,

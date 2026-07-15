@@ -1,21 +1,10 @@
-"""Retrieval eval — мери hit stapka врз eval/test_questions.yaml.
-
-Пушти го по секоја промена на chunking/модели/threshold (regression test):
-    python -m eval.run_eval
-
-Exit code 1 ако hit stapka < 80% — погодно за CI.
-"""
 from __future__ import annotations
-
 import sys
 from pathlib import Path
-
 import yaml
-
 from app.core.retriever import retrieve
 
 MIN_HIT_RATE = 0.8
-
 
 def main() -> int:
     slucai = yaml.safe_load(

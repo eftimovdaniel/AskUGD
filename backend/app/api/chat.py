@@ -1,22 +1,8 @@
-"""POST /chat и POST /chat/stream — целиот RAG тек по барање.
-
-Тек: sanitize → историја → retrieve → generate → одговор со извори.
-Грешките кон клиентот се генерички; деталите одат само во логови.
-
-ВАЖНО: endpoint-ите се НАМЕРНО `def` (не `async def`). Retrieval
-(embeddings + Qdrant) и генерацијата (LLM + time.sleep backoff) се
-блокирачки — во `async def` би го замрзнале event loop-от за сите
-корисници. Како `def`, FastAPI ги извршува во threadpool и барањата
-течат паралелно.
-"""
 from __future__ import annotations
-
 import json
 import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-
 from app.config import settings
 from app.core.generator import generate, stream_generate
 from app.core.history import history
@@ -34,12 +20,6 @@ GENERIC_ERROR = "Настана грешка при обработката. Об
 
 
 def _client_ip(request: Request) -> str:
-    """Реална клиентска IP.
-
-    X-Forwarded-For се почитува САМО ако TRUST_PROXY_HEADERS=true (т.е. апликацијата
-    е зад reverse proxy што го контролира header-от). Инаку секој клиент може да
-    испрати лажен XFF и да го заобиколи IP rate limit-от со секое барање.
-    """
     if settings.trust_proxy_headers:
         prosleden = request.headers.get("x-forwarded-for")
         if prosleden:
@@ -48,11 +28,6 @@ def _client_ip(request: Request) -> str:
 
 
 def guard(req: ChatRequest, request: Request) -> None:
-    """Заеднички security dependency: API key + rate limit (сесија + IP).
-
-    - по IP: висок лимит (кампус NAT — многу студенти зад иста IP)
-    - по сесија: нормален лимит; без session_id паѓа назад на IP
-    """
     if not verify_api_key(request.headers.get("x-api-key")):
         raise HTTPException(status_code=401, detail="Невалиден API клуч")
     ip_adresa = _client_ip(request)
@@ -66,7 +41,6 @@ def guard(req: ChatRequest, request: Request) -> None:
 
 
 def _prepare(req: ChatRequest) -> tuple[str, str, list[dict], list[dict]]:
-    """Заеднички дел за двата endpoint-а: чистење, историја, retrieval."""
     prashanje, oznaceno = sanitize_question(req.question)
     if oznaceno:
         logger.warning("Injection обид детектиран во прашање")
@@ -107,7 +81,6 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
 
 @router.post("/chat/stream")
 def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
-    """SSE: прво event 'sources', па 'token' по токен, на крај 'done'."""
     prashanje, session_id, prethodni_poraki, parchinja = _prepare(req)
 
     def event(podatoci: dict) -> str:
@@ -133,6 +106,4 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
         history.append(session_id, "assistant", "".join(delovi_odgovor))
         yield event({"type": "done"})
 
-    return StreamingResponse(stream(), media_type="text/event-stream",
-                             headers={"Cache-Control": "no-cache",
-                                      "X-Accel-Buffering": "no"})
+    return StreamingResponse(stream(), media_type="text/event-stream",headers={"Cache-Control": "no-cache","X-Accel-Buffering": "no"})

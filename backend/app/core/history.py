@@ -1,33 +1,19 @@
-"""Конверзациска историја по сесија.
-
-- Без REDIS_URL: in-memory со TTL (доволно за ЕДЕН worker)
-- Со REDIS_URL: споделена меѓу workers/replika (ЗАДОЛЖИТЕЛНО за gunicorn -w 2+,
-  инаку сесијата „ја губи" историјата кога барањето падне на друг worker)
-
-Ист интерфејс: get / append / new_session_id.
-"""
 from __future__ import annotations
-
 import json
 import logging
 import secrets
 import threading
 import time
-
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
 _MAX_SESSIONS = 5000
-
 
 class _Session:
     __slots__ = ("messages", "last_used")
-
     def __init__(self) -> None:
         self.messages: list[dict] = []
         self.last_used = time.monotonic()
-
 
 class HistoryStore:
     def __init__(self, ttl: float, max_turns: int) -> None:
@@ -41,7 +27,6 @@ class HistoryStore:
         return secrets.token_urlsafe(16)
 
     def _purge(self) -> None:
-        """Избриши истечени сесии (се повикува под lock)."""
         sega = time.monotonic()
         isteceni = [session_id for session_id, sesija in self._sessions.items()
                    if sega - sesija.last_used > self._ttl]
@@ -55,7 +40,6 @@ class HistoryStore:
                 del self._sessions[session_id]
 
     def get(self, session_id: str) -> list[dict]:
-        """Последни пораки за сесија: [{"role": ..., "content": ...}]."""
         with self._lock:
             self._purge()
             sesija = self._sessions.get(session_id)
@@ -74,12 +58,6 @@ class HistoryStore:
 
 
 class RedisHistoryStore:
-    """Иста семантика како HistoryStore, но во Redis (list по сесија + TTL).
-
-    Fail-soft: ако Redis е недостапен, разговорот продолжува без историја
-    (одговорот сепак се генерира), а грешката се логира.
-    """
-
     def __init__(self, url: str, ttl: int, max_turns: int) -> None:
         import redis  # опционална зависност — само со REDIS_URL
 
@@ -111,12 +89,7 @@ class RedisHistoryStore:
             pipe.execute()
         except Exception as greshka:  # noqa: BLE001
             logger.warning("Redis history append падна (%s)", greshka)
-
-
 if settings.redis_url:
-    history = RedisHistoryStore(settings.redis_url,
-                                ttl=settings.history_ttl_seconds,
-                                max_turns=settings.history_max_turns)
+    history = RedisHistoryStore(settings.redis_url,ttl=settings.history_ttl_seconds, max_turns=settings.history_max_turns)
 else:
-    history = HistoryStore(ttl=settings.history_ttl_seconds,
-                           max_turns=settings.history_max_turns)
+    history = HistoryStore(ttl=settings.history_ttl_seconds, max_turns=settings.history_max_turns)
