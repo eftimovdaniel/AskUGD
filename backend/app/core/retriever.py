@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 import logging
-
 from app.config import settings
 from app.core import rerank as reranker
 from app.core import vectorstore
@@ -11,8 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class RetrievalUnavailable(Exception):
-    pass
-
+    """Векторската база / embeddings не се достапни — API треба да врати 503."""
 
 def _query_variants(prashanje: str) -> list[str]:
     varijanti = [prashanje]
@@ -21,16 +18,14 @@ def _query_variants(prashanje: str) -> list[str]:
         varijanti.append(prevod)
     return varijanti[: settings.max_retrieval_iterations]
 
-
 def retrieve(prashanje: str) -> list[dict]:
     videni: dict[str, dict] = {}
     varijanti = _query_variants(prashanje)
     neuspesi = 0
-
     for varijanta_br, varijanta in enumerate(varijanti, 1):
         try:
             pogodoci = vectorstore.search(varijanta, limit=settings.candidate_k)
-        except Exception as greshka:  # noqa: BLE001
+        except Exception as greshka: 
             neuspesi += 1
             logger.error("Search за варијанта %d падна: %s", varijanta_br, greshka)
             continue
@@ -40,29 +35,23 @@ def retrieve(prashanje: str) -> list[dict]:
                 videni[pogodok["id"]] = pogodok
         if len(videni) >= settings.candidate_k:
             break
-
     if neuspesi == len(varijanti):
         raise RetrievalUnavailable("Пребарувањето е недостапно (Qdrant/embeddings)")
 
-    kandidati = sorted(videni.values(), key=lambda pogodok: pogodok["score"],
-                       reverse=True)
+    kandidati = sorted(videni.values(), key=lambda pogodok: pogodok["score"], reverse=True)
     kandidati = kandidati[: settings.candidate_k]
     if not kandidati:
         return []
-
     oceni = reranker.rerank(prashanje, [kand["text"] for kand in kandidati])
     if oceni is not None:
         for kandidat, ocena in zip(kandidati, oceni, strict=True):
             kandidat["rerank_score"] = ocena
         kandidati = [kandidat for kandidat in kandidati
-                     if kandidat["rerank_score"] >= settings.rerank_threshold]
+                      if kandidat["rerank_score"] >= settings.rerank_threshold]
         kandidati.sort(key=lambda kand: kand["rerank_score"], reverse=True)
-
     najdobri = kandidati[: settings.top_k]
-    logger.info("Retrieval: %d кандидати → %d по rerank/threshold",
-                len(videni), len(najdobri))
+    logger.info("Retrieval: %d кандидати → %d по rerank/threshold", len(videni), len(najdobri))
     return najdobri
-
 
 def extract_sources(parchinja: list[dict]) -> list[dict]:
     izvori, videni_klucevi = [], set()

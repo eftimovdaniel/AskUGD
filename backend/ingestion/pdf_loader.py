@@ -1,25 +1,9 @@
-"""Вади сиров текст од PDF со PyMuPDF и го чисти шумот (header/footer, disclaimer).
-
-PDF-овите се дигитален текст (не скенирани), па нема потреба од OCR.
-Проблемот е повторувачкиот шум на секоја страница што ги затруе embedding-ите.
-
-Отпорност:
-- лимити на големина на фајл и број страници (заштита од злонамерни/расипани PDF)
-- шифрирани PDF-ови се прескокнуваат со јасна грешка
-- грешка на една страница не го руши целиот документ
-- документот секогаш се затвора (context manager)
-- ``load_pdf_bytes`` за PDF-ови преземени од web (без пишување на диск)
-"""
 from __future__ import annotations
-
 import logging
 import re
 from pathlib import Path
-
 import fitz  # PyMuPDF
-
 logger = logging.getLogger(__name__)
-
 MAX_FILE_BYTES = 50 * 1024 * 1024   # 50 MB
 MAX_PAGES = 500
 
@@ -38,10 +22,8 @@ _NOISE_RE = re.compile("|".join(NOISE_PATTERNS), re.IGNORECASE | re.DOTALL)
 # Невидливи карактери: zero-width простори, BOM, soft hyphen
 _INVISIBLE_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]")
 
-
 class PdfError(Exception):
     """Грешка при вчитување PDF (безбедна порака, без стек кон корисник)."""
-
 
 def clean_text(text: str) -> str:
     """Отстрани шум, невидливи карактери и вишок празни линии."""
@@ -55,14 +37,12 @@ def clean_text(text: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)        # вишок празни места
     return text.strip()
 
-
 def _extract(dokument: fitz.Document, name: str) -> str:
     """Заеднички дел: провери документ и извади чист текст од сите страници."""
     if dokument.needs_pass:
         raise PdfError(f"'{name}' е заштитен со лозинка — прескокнат")
     if dokument.page_count > MAX_PAGES:
         raise PdfError(f"'{name}' има {dokument.page_count} страници (лимит {MAX_PAGES})")
-
     stranici: list[str] = []
     for page_no in range(dokument.page_count):
         try:
@@ -74,15 +54,11 @@ def _extract(dokument: fitz.Document, name: str) -> str:
         iscisten = clean_text(surov)
         if iscisten:
             stranici.append(iscisten)
-
     if not stranici:
         raise PdfError(f"'{name}' не содржи извлечлив текст")
-    # спој ги страниците — членовите често се прелеваат преку страница
     return "\n\n".join(stranici)
 
-
 def load_pdf(path: str | Path) -> str:
-    """Врати чист, споен текст од PDF фајл на диск."""
     pateka = Path(path)
     if not pateka.is_file():
         raise PdfError(f"Фајлот не постои: {pateka.name}")
@@ -96,9 +72,7 @@ def load_pdf(path: str | Path) -> str:
     except Exception as greshka:
         raise PdfError(f"Не може да се отвори '{pateka.name}': {greshka}") from greshka
 
-
 def load_pdf_bytes(podatoci: bytes, name: str = "<web-pdf>") -> str:
-    """Врати чист текст од PDF во меморија (преземен од web)."""
     if len(podatoci) > MAX_FILE_BYTES:
         raise PdfError(f"'{name}' е поголем од {MAX_FILE_BYTES // (1024*1024)} MB")
     try:
@@ -108,7 +82,6 @@ def load_pdf_bytes(podatoci: bytes, name: str = "<web-pdf>") -> str:
         raise
     except Exception as greshka:
         raise PdfError(f"Не може да се парсира '{name}': {greshka}") from greshka
-
 
 if __name__ == "__main__":
     import sys
