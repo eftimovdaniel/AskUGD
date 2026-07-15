@@ -1,29 +1,15 @@
-"""Безбедносен слој: rate limiting, API key, чистење на влез, injection guard.
-
-Rate limiting е на ДВЕ нивоа:
-- по сесија (rate_limit) — фер лимит по корисник
-- по IP (rate_limit_ip, повисок) — кампус NAT значи стотици студенти зад
-  иста јавна IP, па нискиот IP лимит би ги блокирал масовно
-
-Ако REDIS_URL е поставен, лимитите се споделени меѓу workers/replika.
-"""
 from __future__ import annotations
-
 import hmac
 import logging
 import re
 import threading
 import time
 from collections import defaultdict, deque
-
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Контролни карактери освен \n и \t
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
-# Типични prompt-injection фрази во ПРАШАЊЕ (mk + en) — се логираат и неутрализираат
 _INJECTION_RE = re.compile(
     r"(?i)(ignore\s+(all\s+)?(previous|prior|above)\s+instructions?|"
     r"disregard\s+(the\s+)?(above|previous|prior)|"
@@ -33,10 +19,7 @@ _INJECTION_RE = re.compile(
     r"заборави\s+ги\s+претходните|системски\s+промпт)"
 )
 
-
 class RateLimiter:
-    """Sliding-window лимитер по клуч (IP). Thread-safe, in-memory."""
-
     def __init__(self, limit: int, window_seconds: float = 60.0) -> None:
         self.limit = limit
         self.window = window_seconds
@@ -59,21 +42,12 @@ class RateLimiter:
                     del self._hits[kluc]
             return True
 
-
 class RedisRateLimiter:
-    """Fixed-window лимитер во Redis — споделен меѓу процеси.
-
-    Fail-open: ако Redis падне, пропуштаме (достапноста > строгост),
-    а грешката се логира.
-    """
-
     def __init__(self, url: str, limit: int, window_seconds: int = 60) -> None:
-        import redis  # опционална зависност — само со REDIS_URL
-
+        import redis  
         self.limit = limit
         self.window = window_seconds
-        self._r = redis.Redis.from_url(url, decode_responses=True,
-                                       socket_timeout=2)
+        self._r = redis.Redis.from_url(url, decode_responses=True, socket_timeout=2)
 
     def allow(self, key: str) -> bool:
         try:
@@ -87,31 +61,21 @@ class RedisRateLimiter:
             logger.warning("Redis rate limit недостапен (%s) — fail-open", greshka)
             return True
 
-
 def _make_limiter(limit: int):
     if settings.redis_url:
         return RedisRateLimiter(settings.redis_url, limit=limit)
     return RateLimiter(limit=limit)
-
-
 session_rate_limiter = _make_limiter(settings.rate_limit)
 ip_rate_limiter = _make_limiter(settings.rate_limit_ip)
 
-
 def verify_api_key(provided: str | None) -> bool:
-    """True ако API key не е конфигуриран, или ако се совпаѓа (constant-time)."""
     if not settings.api_access_key:
         return True
     if not provided:
         return False
     return hmac.compare_digest(provided, settings.api_access_key)
 
-
 def sanitize_question(raw: str) -> tuple[str, bool]:
-    """Исчисти прашање: контролни карактери, должина, injection фрази.
-
-    Враќа (чисто_прашање, injection_детектиран).
-    """
     prashanje = _CONTROL_RE.sub("", raw or "")
     prashanje = re.sub(r"\s+", " ", prashanje).strip()
     prashanje = prashanje[: settings.max_question_chars]

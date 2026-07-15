@@ -1,27 +1,13 @@
-"""Хибридно семантичко chunking прилагодено на УГД документите.
-
-- Правилници: имаат „Член N" -> сечи по член (зачувува правен контекст)
-- Упатства/процедури: немаат членови -> сечи по пасуси со preklop (~15%)
-
-Секое парче носи богата метадата (source, title, url, article_no, lang...)
-за прецизно цитирање и приказ на референца во widget-от.
-
-Безбедност: текстот од документите се неутрализира од типични prompt-injection
-фрази ПРЕД да влезе во базата (одбрана во длабочина — плус XML изолација во промптот).
-"""
 from __future__ import annotations
-
 import re
 from dataclasses import dataclass, field
 
 ARTICLE_RE = re.compile(r"(?m)^\s*(Член\s+\d+[а-я]?)\b")
-
 MAX_WORDS = 1000
-OVERLAP_RATIO = 0.15          # ~15% преклопување меѓу парчиња
+OVERLAP_RATIO = 0.15         
 PARAGRAPH_TARGET = 800
 MIN_CHUNK_WORDS = 8
 
-# Фрази типични за prompt injection во текст (mk + en). Ги неутрализираме.
 _INJECTION_RE = re.compile(
     r"(?i)(ignore\s+(all\s+)?(previous|prior|above)\s+instructions?|"
     r"disregard\s+(the\s+)?(above|previous|prior)|"
@@ -33,27 +19,17 @@ _INJECTION_RE = re.compile(
     r"заборави\s+ги\s+претходните|нови\s+инструкции\s*:|"
     r"системски\s+промпт|однесувај\s+се\s+како)"
 )
-
-# Контролни карактери (освен \n и \t) — чистиме пред сè друго
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-
 
 @dataclass
 class Chunk:
     text: str
     metadata: dict = field(default_factory=dict)
 
-
 def neutralize_injections(text: str) -> str:
-    """Замени очигледни injection фрази со безопасен placeholder."""
     return _INJECTION_RE.sub("[отстранета инструкција]", text)
 
-
 def _split_by_words(text: str, maks_zborovi: int = MAX_WORDS) -> list[str]:
-    """Исечи текст на парчиња од најмногу maks_zborovi со preklop.
-
-    Гарантирано терминира: чекорот е секогаш >= 1.
-    """
     zborovi = text.split()
     if len(zborovi) <= maks_zborovi:
         return [text]
@@ -66,7 +42,6 @@ def _split_by_words(text: str, maks_zborovi: int = MAX_WORDS) -> list[str]:
             break
         pozicija += cekor
     return delovi
-
 
 def _chunk_by_articles(text: str) -> list[Chunk]:
     sovpaganja = list(ARTICLE_RE.finditer(text))
@@ -86,12 +61,7 @@ def _chunk_by_articles(text: str) -> list[Chunk]:
             parchinja.append(Chunk(delce, {"article_no": oznaka, "part": del_br}))
     return parchinja
 
-
 def _chunk_by_paragraphs(text: str) -> list[Chunk]:
-    """Групирај пасуси до ~PARAGRAPH_TARGET зборови, со preklop од последен пасус.
-
-    Пасус подолг од MAX_WORDS се сече по зборови — ништо не останува преголемо.
-    """
     surovi_pasusi = [pasus_edinica.strip() for pasus_edinica in text.split("\n\n") if pasus_edinica.strip()]
     pasusi: list[str] = []
     for pasus_edinica in surovi_pasusi:
@@ -105,7 +75,6 @@ def _chunk_by_paragraphs(text: str) -> list[Chunk]:
         if broj_zborovi + zborovi_pasus > PARAGRAPH_TARGET and bafer:
             parchinja.append(Chunk("\n\n".join(bafer), {"section": f"дел {sekcija_br}"}))
             sekcija_br += 1
-            # preklop: задржи го последниот пасус само ако е разумно мал
             posleden_pasus = bafer[-1]
             if len(posleden_pasus.split()) <= PARAGRAPH_TARGET // 2:
                 bafer = [posleden_pasus]
@@ -118,35 +87,24 @@ def _chunk_by_paragraphs(text: str) -> list[Chunk]:
         parchinja.append(Chunk("\n\n".join(bafer), {"section": f"дел {sekcija_br}"}))
     return parchinja
 
-
-def chunk_document(
-    text: str,
-    source: str,
-    doc_type: str = "pdf",
-    title: str | None = None,
-    url: str | None = None,
-    lang: str = "mk",
-) -> list[Chunk]:
-    """Главна функција: избери стратегија и додади богата метадата."""
+def chunk_document(text: str, source: str, doc_type: str = "pdf", title: str | None = None, url: str | None = None, lang: str = "mk",) -> list[Chunk]:
     if not text or not text.strip():
         return []
     text = _CONTROL_RE.sub("", text)
-
     ima_clenovi = len(ARTICLE_RE.findall(text)) >= 3
     parchinja = _chunk_by_articles(text) if ima_clenovi else _chunk_by_paragraphs(text)
-
     rezultat: list[Chunk] = []
     for parche in parchinja:
         if len(parche.text.split()) < MIN_CHUNK_WORDS:
             continue
-        parche.text = neutralize_injections(parche.text)   # безбедност при ingestion
+        parche.text = neutralize_injections(parche.text)   
         parche.metadata.update({
             "source": source,
             "title": title or source,
             "url": url,
             "doc_type": doc_type,
             "lang": lang,
-            "chunk_index": len(rezultat),          # индекс по филтрирање — без дупки
+            "chunk_index": len(rezultat),          
             "strategy": "article" if ima_clenovi else "paragraph",
             "word_count": len(parche.text.split()),
         })

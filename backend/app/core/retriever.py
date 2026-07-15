@@ -1,8 +1,3 @@
-"""Retrieval pipeline: translate → hybrid search → rerank → threshold → top_k.
-
-Bounded loop: најмногу MAX_RETRIEVAL_ITERATIONS варијанти на прашањето
-(оригинал, превод...) — гарантирано запира.
-"""
 from __future__ import annotations
 
 import logging
@@ -16,11 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class RetrievalUnavailable(Exception):
-    """Векторската база / embeddings не се достапни — API треба да врати 503."""
+    pass
 
 
 def _query_variants(prashanje: str) -> list[str]:
-    """Оригинал + превод на мк (ако прашањето не е на кирилица)."""
     varijanti = [prashanje]
     prevod = translate_query(prashanje)
     if prevod and prevod.lower() != prashanje.lower():
@@ -29,11 +23,10 @@ def _query_variants(prashanje: str) -> list[str]:
 
 
 def retrieve(prashanje: str) -> list[dict]:
-    """Врати најрелевантни парчиња [{text, ocena, podatoci}] за прашањето."""
-    # 1) собери кандидати од сите варијанти (bounded loop)
     videni: dict[str, dict] = {}
     varijanti = _query_variants(prashanje)
     neuspesi = 0
+
     for varijanta_br, varijanta in enumerate(varijanti, 1):
         try:
             pogodoci = vectorstore.search(varijanta, limit=settings.candidate_k)
@@ -49,30 +42,29 @@ def retrieve(prashanje: str) -> list[dict]:
             break
 
     if neuspesi == len(varijanti):
-        # базата е недостапна — НЕ одговарај „нема информација" (лажно)
         raise RetrievalUnavailable("Пребарувањето е недостапно (Qdrant/embeddings)")
 
-    kandidati = sorted(videni.values(), key=lambda pogodok: pogodok["score"], reverse=True)
+    kandidati = sorted(videni.values(), key=lambda pogodok: pogodok["score"],
+                       reverse=True)
     kandidati = kandidati[: settings.candidate_k]
     if not kandidati:
         return []
 
-    # 2) rerank (со fallback — ако не е достапен, остани на RRF редоследот)
     oceni = reranker.rerank(prashanje, [kand["text"] for kand in kandidati])
     if oceni is not None:
         for kandidat, ocena in zip(kandidati, oceni, strict=True):
             kandidat["rerank_score"] = ocena
         kandidati = [kandidat for kandidat in kandidati
-                      if kandidat["rerank_score"] >= settings.rerank_threshold]
+                     if kandidat["rerank_score"] >= settings.rerank_threshold]
         kandidati.sort(key=lambda kand: kand["rerank_score"], reverse=True)
 
     najdobri = kandidati[: settings.top_k]
-    logger.info("Retrieval: %d кандидати → %d по rerank/threshold", len(videni), len(najdobri))
+    logger.info("Retrieval: %d кандидати → %d по rerank/threshold",
+                len(videni), len(najdobri))
     return najdobri
 
 
 def extract_sources(parchinja: list[dict]) -> list[dict]:
-    """Уникатни извори за приказ во widget (title, url, article_no)."""
     izvori, videni_klucevi = [], set()
     for parche in parchinja:
         podatoci = parche.get("payload", {})

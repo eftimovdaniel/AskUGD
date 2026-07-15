@@ -1,20 +1,11 @@
-"""Cross-enkoder re-ranking со graceful fallback.
-
-Ако моделот не може да се вчита (нема RAM/диск), retrieval продолжува
-БЕЗ rerank наместо да падне целиот сервис.
-"""
 from __future__ import annotations
-
 import logging
 import math
-
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
 _encoder = None
 _load_failed = False
-
 
 def _get_encoder():
     global _encoder, _load_failed
@@ -28,9 +19,7 @@ def _get_encoder():
             logger.error("Reranker не се вчита (%s) — продолжувам без rerank", greshka)
     return _encoder
 
-
 def rerank(prashanje: str, dokumenti: list[str]) -> list[float] | None:
-    """Врати sigmoid ocena (0..1) по документ, или None ако rerank не е достапен."""
     if not dokumenti:
         return []
     enkoder = _get_encoder()
