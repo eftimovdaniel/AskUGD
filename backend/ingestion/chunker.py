@@ -1,8 +1,21 @@
+"""Хибридно семантичко chunking прилагодено на УГД документите.
+
+- Правилници: имаат „Член N" -> сечи по член (зачувува правен контекст)
+- Упатства/процедури: немаат членови -> сечи по пасуси со preklop (~15%)
+
+Секое парче носи богата метадата (source, title, url, article_no, lang...)
+за прецизно цитирање и приказ на референца во widget-от.
+
+Безбедност: текстот од документите се неутрализира од типични prompt-injection
+фрази ПРЕД да влезе во базата (одбрана во длабочина — плус XML изолација во промптот).
+"""
 from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 
 ARTICLE_RE = re.compile(r"(?m)^\s*(Член\s+\d+[а-я]?)\b")
+
 MAX_WORDS = 1000
 OVERLAP_RATIO = 0.15          # ~15% преклопување меѓу парчиња
 PARAGRAPH_TARGET = 800
@@ -20,94 +33,122 @@ _INJECTION_RE = re.compile(
     r"заборави\s+ги\s+претходните|нови\s+инструкции\s*:|"
     r"системски\s+промпт|однесувај\s+се\s+како)"
 )
+
+# Контролни карактери (освен \n и \t) — чистиме пред сè друго
 _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
 
 @dataclass
 class Chunk:
     text: str
     metadata: dict = field(default_factory=dict)
 
+
 def neutralize_injections(text: str) -> str:
+    """Замени очигледни injection фрази со безопасен placeholder."""
     return _INJECTION_RE.sub("[отстранета инструкција]", text)
 
-def _split_by_words(text: str, max_words: int = MAX_WORDS) -> list[str]:
-    words = text.split()
-    if len(words) <= max_words:
+
+def _split_by_words(text: str, maks_zborovi: int = MAX_WORDS) -> list[str]:
+    """Исечи текст на парчиња од најмногу maks_zborovi со preklop.
+
+    Гарантирано терминира: чекорот е секогаш >= 1.
+    """
+    zborovi = text.split()
+    if len(zborovi) <= maks_zborovi:
         return [text]
-    overlap = max(0, int(max_words * OVERLAP_RATIO))
-    step = max(1, max_words - overlap)
-    out, i = [], 0
-    while i < len(words):
-        out.append(" ".join(words[i:i + max_words]))
-        if i + max_words >= len(words):
+    preklop = max(0, int(maks_zborovi * OVERLAP_RATIO))
+    cekor = max(1, maks_zborovi - preklop)
+    delovi, pozicija = [], 0
+    while pozicija < len(zborovi):
+        delovi.append(" ".join(zborovi[pozicija:pozicija + maks_zborovi]))
+        if pozicija + maks_zborovi >= len(zborovi):
             break
-        i += step
-    return out
+        pozicija += cekor
+    return delovi
+
 
 def _chunk_by_articles(text: str) -> list[Chunk]:
-    matches = list(ARTICLE_RE.finditer(text))
-    chunks: list[Chunk] = []
-    if matches and matches[0].start() > 0:
-        intro = text[:matches[0].start()].strip()
-        if len(intro.split()) > 20:
-            for j, piece in enumerate(_split_by_words(intro)):
-                chunks.append(Chunk(piece, {"article_no": None, "section": "вовед", "part": j}))
-    for idx, m in enumerate(matches):
-        start = m.start()
-        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
-        body = text[start:end].strip()
-        label = m.group(1).strip()
-        for j, piece in enumerate(_split_by_words(body)):
-            chunks.append(Chunk(piece, {"article_no": label, "part": j}))
-    return chunks
+    sovpaganja = list(ARTICLE_RE.finditer(text))
+    parchinja: list[Chunk] = []
+    if sovpaganja and sovpaganja[0].start() > 0:
+        voved = text[:sovpaganja[0].start()].strip()
+        if len(voved.split()) > 20:
+            for del_br, delce in enumerate(_split_by_words(voved)):
+                parchinja.append(Chunk(delce, {"article_no": None, "section": "вовед", "part": del_br}))
+    for indeks_sovp, sovpaganje in enumerate(sovpaganja):
+        pocetok = sovpaganje.start()
+        kraj = (sovpaganja[indeks_sovp + 1].start()
+               if indeks_sovp + 1 < len(sovpaganja) else len(text))
+        telo = text[pocetok:kraj].strip()
+        oznaka = sovpaganje.group(1).strip()
+        for del_br, delce in enumerate(_split_by_words(telo)):
+            parchinja.append(Chunk(delce, {"article_no": oznaka, "part": del_br}))
+    return parchinja
+
 
 def _chunk_by_paragraphs(text: str) -> list[Chunk]:
-    raw_paras = [p.strip() for p in text.split("\n\n") if p.strip()]
-    paras: list[str] = []
-    for p in raw_paras:
-        paras.extend(_split_by_words(p))    # осигурај дека ниту еден пасус не е џин
-    chunks: list[Chunk] = []
-    buff: list[str] = []
-    count, idx = 0, 0
-    for p in paras:
-        w = len(p.split())
-        if count + w > PARAGRAPH_TARGET and buff:
-            chunks.append(Chunk("\n\n".join(buff), {"section": f"дел {idx}"}))
-            idx += 1
-            # overlap: задржи го последниот пасус само ако е разумно мал
-            last = buff[-1]
-            if len(last.split()) <= PARAGRAPH_TARGET // 2:
-                buff = [last]
-                count = len(last.split())
+    """Групирај пасуси до ~PARAGRAPH_TARGET зборови, со preklop од последен пасус.
+
+    Пасус подолг од MAX_WORDS се сече по зборови — ништо не останува преголемо.
+    """
+    surovi_pasusi = [pasus_edinica.strip() for pasus_edinica in text.split("\n\n") if pasus_edinica.strip()]
+    pasusi: list[str] = []
+    for pasus_edinica in surovi_pasusi:
+        pasusi.extend(_split_by_words(pasus_edinica))  # ниту еден пасус да не е џин
+
+    parchinja: list[Chunk] = []
+    bafer: list[str] = []
+    broj_zborovi, sekcija_br = 0, 0
+    for pasus in pasusi:
+        zborovi_pasus = len(pasus.split())
+        if broj_zborovi + zborovi_pasus > PARAGRAPH_TARGET and bafer:
+            parchinja.append(Chunk("\n\n".join(bafer), {"section": f"дел {sekcija_br}"}))
+            sekcija_br += 1
+            # preklop: задржи го последниот пасус само ако е разумно мал
+            posleden_pasus = bafer[-1]
+            if len(posleden_pasus.split()) <= PARAGRAPH_TARGET // 2:
+                bafer = [posleden_pasus]
+                broj_zborovi = len(posleden_pasus.split())
             else:
-                buff, count = [], 0
-        buff.append(p)
-        count += w
-    if buff:
-        chunks.append(Chunk("\n\n".join(buff), {"section": f"дел {idx}"}))
-    return chunks
+                bafer, broj_zborovi = [], 0
+        bafer.append(pasus)
+        broj_zborovi += zborovi_pasus
+    if bafer:
+        parchinja.append(Chunk("\n\n".join(bafer), {"section": f"дел {sekcija_br}"}))
+    return parchinja
 
 
-def chunk_document( text: str, source: str, doc_type: str = "pdf", title: str | None = None, url: str | None = None, lang: str = "mk",) -> list[Chunk]:
+def chunk_document(
+    text: str,
+    source: str,
+    doc_type: str = "pdf",
+    title: str | None = None,
+    url: str | None = None,
+    lang: str = "mk",
+) -> list[Chunk]:
+    """Главна функција: избери стратегија и додади богата метадата."""
     if not text or not text.strip():
         return []
     text = _CONTROL_RE.sub("", text)
-    has_articles = len(ARTICLE_RE.findall(text)) >= 3
-    chunks = _chunk_by_articles(text) if has_articles else _chunk_by_paragraphs(text)
-    result: list[Chunk] = []
-    for c in chunks:
-        if len(c.text.split()) < MIN_CHUNK_WORDS:
+
+    ima_clenovi = len(ARTICLE_RE.findall(text)) >= 3
+    parchinja = _chunk_by_articles(text) if ima_clenovi else _chunk_by_paragraphs(text)
+
+    rezultat: list[Chunk] = []
+    for parche in parchinja:
+        if len(parche.text.split()) < MIN_CHUNK_WORDS:
             continue
-        c.text = neutralize_injections(c.text)   # безбедност при ingestion
-        c.metadata.update({
+        parche.text = neutralize_injections(parche.text)   # безбедност при ingestion
+        parche.metadata.update({
             "source": source,
             "title": title or source,
             "url": url,
             "doc_type": doc_type,
             "lang": lang,
-            "chunk_index": len(result),          # индекс по филтрирање — без дупки
-            "strategy": "article" if has_articles else "paragraph",
-            "word_count": len(c.text.split()),
+            "chunk_index": len(rezultat),          # индекс по филтрирање — без дупки
+            "strategy": "article" if ima_clenovi else "paragraph",
+            "word_count": len(parche.text.split()),
         })
-        result.append(c)
-    return result
+        rezultat.append(parche)
+    return rezultat

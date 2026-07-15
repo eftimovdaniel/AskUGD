@@ -1,3 +1,6 @@
+# Тест прашања за retrieval eval — прошири ја листата со реални
+# студентски прашања. expected_source = дел од source/title што МОРА
+# да се појави во извлечените парчиња.
 - question: "Како да се запишам на семестар?"
   expected_source: "Upis_na_semestar"
 

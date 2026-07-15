@@ -1,5 +1,12 @@
+"""Retrieval pipeline: translate → hybrid search → rerank → threshold → top_k.
+
+Bounded loop: најмногу MAX_RETRIEVAL_ITERATIONS варијанти на прашањето
+(оригинал, превод...) — гарантирано запира.
+"""
 from __future__ import annotations
+
 import logging
+
 from app.config import settings
 from app.core import rerank as reranker
 from app.core import vectorstore
@@ -7,60 +14,76 @@ from app.core.translate import translate_query
 
 logger = logging.getLogger(__name__)
 
-class RetrievalUnavailable(Exception):
-    def _query_variants(question: str) -> list[str]:
-        variantes = [question]
-        translated = translate_query[question]
-        if translated and translated.lower() != question.lower():
-            variantes.append(translated)
-        return variants[: settings.max_retrieval_iterations]
-    
-    def _query_variantes( question: str )-> list[str]:
-        seen: dict[str, dict] = {}
-        variants = _query_variants(question)
-        failures = 0
-        for i, q in enumerate(variants, 1):
-            try:
-                hints = vectorstore.search (q, limit = settings.candidate_k)
-            except Exception as e:
-                failures += 1
-                logger.error("Search за варијанта %d падна: %s", i, e)
-                continue
-            for h in hints:
-                prev = seen.get(h["id"])
-                if prev is None or h["score"] > prev["score"]:
-                    seen[h["id"]] = h
-            if len(seen) >= settings.candidate:
-                break
-        if failures == len(variants):
-            raise RetrievalUnavailable("Пребарувањето е недостапно (Qdrant/embeddings)")
-        candidates = sorted(seen.values(), key= lambda h: h["score"], reverse=True)
-        candidates = candidates[: settings.candidate_k]
-        if not candidates:
-            return []
-        scores = reranker.rerank(question, [c["text"] for c in candidates])
-        if scores is not None:
-            for c, s in zip(candidates, scores):
-                c["rerank_score"] = s
-            candidates = [c for c in candidates if c["rerank_score"] >= settings.rerank_threshold]
-            candidates.sort(key=lambda c: c["rerank_score"], reverse=True)
 
-        top = candidates[: settings.top_k]
-        logger.info("Retrieval: %d кандидати → %d по rerank/threshold", len(seen), len(top))
-        return top
-    
-def extract_sources(chunks: list[dict]) -> list[dict]:
-    out, seen_keys = [], set()
-    for c in chunks:
-        p = c.get("payload", {})
-        key = (p.get("source"), p.get("article_no"))
-        if key in seen_keys:
+class RetrievalUnavailable(Exception):
+    """Векторската база / embeddings не се достапни — API треба да врати 503."""
+
+
+def _query_variants(prashanje: str) -> list[str]:
+    """Оригинал + превод на мк (ако прашањето не е на кирилица)."""
+    varijanti = [prashanje]
+    prevod = translate_query(prashanje)
+    if prevod and prevod.lower() != prashanje.lower():
+        varijanti.append(prevod)
+    return varijanti[: settings.max_retrieval_iterations]
+
+
+def retrieve(prashanje: str) -> list[dict]:
+    """Врати најрелевантни парчиња [{text, ocena, podatoci}] за прашањето."""
+    # 1) собери кандидати од сите варијанти (bounded loop)
+    videni: dict[str, dict] = {}
+    varijanti = _query_variants(prashanje)
+    neuspesi = 0
+    for varijanta_br, varijanta in enumerate(varijanti, 1):
+        try:
+            pogodoci = vectorstore.search(varijanta, limit=settings.candidate_k)
+        except Exception as greshka:  # noqa: BLE001
+            neuspesi += 1
+            logger.error("Search за варијанта %d падна: %s", varijanta_br, greshka)
             continue
-        seen_keys.add(key)
-        out.append({
-            "title": p.get("title") or p.get("source") or "?",
-            "url": p.get("url"),
-            "article_no": p.get("article_no"),
-            "source": p.get("source") or "?",
+        for pogodok in pogodoci:
+            prethoden = videni.get(pogodok["id"])
+            if prethoden is None or pogodok["score"] > prethoden["score"]:
+                videni[pogodok["id"]] = pogodok
+        if len(videni) >= settings.candidate_k:
+            break
+
+    if neuspesi == len(varijanti):
+        # базата е недостапна — НЕ одговарај „нема информација" (лажно)
+        raise RetrievalUnavailable("Пребарувањето е недостапно (Qdrant/embeddings)")
+
+    kandidati = sorted(videni.values(), key=lambda pogodok: pogodok["score"], reverse=True)
+    kandidati = kandidati[: settings.candidate_k]
+    if not kandidati:
+        return []
+
+    # 2) rerank (со fallback — ако не е достапен, остани на RRF редоследот)
+    oceni = reranker.rerank(prashanje, [kand["text"] for kand in kandidati])
+    if oceni is not None:
+        for kandidat, ocena in zip(kandidati, oceni, strict=True):
+            kandidat["rerank_score"] = ocena
+        kandidati = [kandidat for kandidat in kandidati
+                      if kandidat["rerank_score"] >= settings.rerank_threshold]
+        kandidati.sort(key=lambda kand: kand["rerank_score"], reverse=True)
+
+    najdobri = kandidati[: settings.top_k]
+    logger.info("Retrieval: %d кандидати → %d по rerank/threshold", len(videni), len(najdobri))
+    return najdobri
+
+
+def extract_sources(parchinja: list[dict]) -> list[dict]:
+    """Уникатни извори за приказ во widget (title, url, article_no)."""
+    izvori, videni_klucevi = [], set()
+    for parche in parchinja:
+        podatoci = parche.get("payload", {})
+        kluc = (podatoci.get("source"), podatoci.get("article_no"))
+        if kluc in videni_klucevi:
+            continue
+        videni_klucevi.add(kluc)
+        izvori.append({
+            "title": podatoci.get("title") or podatoci.get("source") or "?",
+            "url": podatoci.get("url"),
+            "article_no": podatoci.get("article_no"),
+            "source": podatoci.get("source") or "?",
         })
-    return out
+    return izvori

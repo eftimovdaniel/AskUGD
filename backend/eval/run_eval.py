@@ -1,22 +1,42 @@
+"""Retrieval eval — мери hit stapka врз eval/test_questions.yaml.
+
+Пушти го по секоја промена на chunking/модели/threshold (regression test):
+    python -m eval.run_eval
+
+Exit code 1 ако hit stapka < 80% — погодно за CI.
+"""
 from __future__ import annotations
+
 import sys
 from pathlib import Path
+
 import yaml
+
 from app.core.retriever import retrieve
 
 MIN_HIT_RATE = 0.8
+
+
 def main() -> int:
-    cases = yaml.safe_load((Path(__file__).parent / "test_questions.yaml").read_text(encoding="utf-8"))
-    hits = 0
-    for case in cases:
-        q, expected = case["question"], case["expected_source"]
-        chunks = retrieve(q)
-        found = any( expected.lower() in str(c.get("payload", {}).get("source", "")).lower() or expected.lower() in str(c.get("payload", {}).get("title", "")).lower()
-            for c in chunks)
-        hints += found
-    rate = hints/ len(cases) if cases else 0.0
-    print(f"\nHit rate: {hits}/{len(cases)} = {rate:.0%} (мин. {MIN_HIT_RATE:.0%})")
-    return 0 if rate >= MIN_HIT_RATE else 1
+    slucai = yaml.safe_load(
+        (Path(__file__).parent / "test_questions.yaml").read_text(encoding="utf-8"))
+    pogodoci = 0
+    for slucaj in slucai:
+        prashanje, ocekuvano = slucaj["question"], slucaj["expected_source"]
+        parchinja = retrieve(prashanje)
+        najdeno = any(
+            ocekuvano.lower() in str(parche.get("payload", {}).get("source", "")).lower()
+            or ocekuvano.lower() in str(parche.get("payload", {}).get("title", "")).lower()
+            for parche in parchinja
+        )
+        pogodoci += najdeno
+        print(f"{'✓' if najdeno else '✗'}  {prashanje!r} -> "
+              f"{[parche.get('payload', {}).get('source') for parche in parchinja]}")
+
+    stapka = pogodoci / len(slucai) if slucai else 0.0
+    print(f"\nHit stapka: {pogodoci}/{len(slucai)} = {stapka:.0%} (мин. {MIN_HIT_RATE:.0%})")
+    return 0 if stapka >= MIN_HIT_RATE else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
