@@ -28,7 +28,7 @@ def translate_query(question: str) -> TranslationResult:
                  "content": "Translate the user's question to Macedonian. ""Return ONLY the translation, nothing else."},
                 {"role": "user", "content": question},
             ],
-            temperature=0.0,
+            temperature=0.0,    # openai parametar so go bira odgovorot sto e najverojate da se izbere (0,0) kako go zgolemuvam se davat povise odgovori sto ne se sovpagat
             max_tokens=200,
         )
         translated = (resp.choices[0].message.content or "").strip()
