@@ -22,9 +22,9 @@ class JsonFormatter(logging.Formatter):
     
 def setup_logging (level: int = logging.INFO) -> None:
     handler = logging.StreamHandler()
-    handler = setFormatter(JsonFormatter())
+    handler.setFormatter(JsonFormatter())
     root = logging.getLogger()
-    root.handle = [handler]
+    root.handlers = [handler]
     root.setLevel(level)
     logging.getLogger("uvicorn.access").disabled = True
 

@@ -261,7 +261,7 @@
   async function askBackend(apiBase, question) {
     let response;
     try {
-      response = await fetch(`${apiBase}/api/chat`, {
+      response = await fetch(`${apiBase}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question })

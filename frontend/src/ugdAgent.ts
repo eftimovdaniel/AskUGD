@@ -81,7 +81,7 @@ function createTypingIndicator(): HTMLDivElement {
 async function askBackend(apiBase: string, question: string): Promise<string> {
   let response: Response;
   try {
-    response = await fetch(`${apiBase}/api/chat`, {
+    response = await fetch(`${apiBase}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question }),
