@@ -241,10 +241,26 @@
     row.appendChild(content);
     return row;
   }
+  function renderMarkdown(text) {
+    const escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    return escaped
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/^#{1,4}\s+(.*)$/gm, "<strong>$1</strong>")
+      .replace(/^\s*[-•]\s+(.*)$/gm, "&nbsp;&nbsp;• $1")
+      .replace(/^\s*(\d+)\.\s+(.*)$/gm, "&nbsp;&nbsp;$1. $2")
+      .replace(/\n/g, "<br>");
+  }
   function createTextMessage(className, text) {
     const el = document.createElement("p");
     el.className = className;
-    el.textContent = text;
+    if (className.includes("ugd-ai-msg-agent")) {
+      el.innerHTML = renderMarkdown(text);
+    } else {
+      el.textContent = text;
+    }
     return el;
   }
   function createTypingIndicator() {

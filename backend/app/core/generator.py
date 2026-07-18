@@ -68,7 +68,9 @@ def _build_context(parchinja: list[dict]) -> str:
         podatoci = parche.get("payload", {})
         oznaka = podatoci.get("title", podatoci.get("source", "?"))
         clen = f" | {podatoci['article_no']}" if podatoci.get("article_no") else ""
-        tekst = parche.get("text", "").replace("<", "&lt;").replace(">", "&gt;")
+        # limit po parche — kirilica troshi ~2-4 tokeni po zbor, a Groq free
+        # tier ima 12k tokeni/min; bez limit golemi parchinja go probivaat
+        tekst = parche.get("text", "")[:3500].replace("<", "&lt;").replace(">", "&gt;")
         delovi.append(f'<doc id="{dok_br}" source="{oznaka}{clen}">\n{tekst}\n</doc>')
     return "<context>\n" + "\n".join(delovi) + "\n</context>"
 

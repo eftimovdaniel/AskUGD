@@ -59,10 +59,28 @@ function wrapAgentBubble(content: HTMLElement): HTMLDivElement {
   return row;
 }
 
+function renderMarkdown(text: string): string {
+  // 1) escape na HTML (XSS bezbednost), 2) minimalen Markdown -> HTML
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return escaped
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/^#{1,4}\s+(.*)$/gm, "<strong>$1</strong>")
+    .replace(/^\s*[-•]\s+(.*)$/gm, "&nbsp;&nbsp;• $1")
+    .replace(/^\s*(\d+)\.\s+(.*)$/gm, "&nbsp;&nbsp;$1. $2")
+    .replace(/\n/g, "<br>");
+}
+
 function createTextMessage(className: string, text: string): HTMLParagraphElement {
   const el = document.createElement("p");
   el.className = className;
-  el.textContent = text;
+  if (className.includes("ugd-ai-msg-agent")) {
+    el.innerHTML = renderMarkdown(text);   // odgovorite od agentot se Markdown
+  } else {
+    el.textContent = text;                 // korisnichkiot vlez SEKOGASH kako tekst
+  }
   return el;
 }
 
