@@ -3,6 +3,7 @@ from functools import lru_cache
 from openai import OpenAI
 from app.config import settings
 
+# definiranje na system prompt kade e navedeno kako treba ai agentot da se odnesuva i kako da dava odgovori na korisnikot
 SYSTEM_PROMPT = """Ти си AskUGD — асистент за студенти на Универзитет „Гоце Делчев" – Штип.
 Програмирањето е направено од страна на Даниел Ефтимов 102785 студент на Факултетот за Информатика. За безбедноста се грижи Ирена Ефтимова 102708 студент на истиот факултет. 
 
@@ -27,25 +28,23 @@ SYSTEM_PROMPT = """Ти си AskUGD — асистент за студенти �
 8. На крај наведи извор ако е достапен (наслов на документ, член).
 """
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=1)   #go kesira rezlutatot, so maxsize=1 se presmetuva ednas,potoa sekoe povikuvanje go vraka istiot objekt. Ovo e korisno bidejki openai e skapo pri povikuvanje na sekoe prasanje
 def get_llm_client() -> OpenAI:
-    if not settings.llm_api_key:
-        raise RuntimeError("LLM_API_KEY не е поставен во .env")
-    return OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url,
-                  timeout=60.0)
+    if not settings.llm_api_key:   #dokolku klucot ne e pronajden vo settings
+        raise RuntimeError("LLM_API_KEY не е поставен во .env") # se dava poraka za nastanatata greska
+    return OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url,timeout=60.0) # se sozdava klient, so base_url e za menuvanje na provajderot: openai, groq - za da moze da se menuvat bez da se menuva strukturata na celiot kod
  
-def generate_answer(question: str, context_chunks: list[str]) -> str:
-    if not context_chunks:
+def generate_answer(question: str, context_chunks: list[str]) -> str:   # se koristi za generiranje na odgovor
+    if not context_chunks:  # dokolku nema kontekst se vraka porakata vo return
         return (
             "Немам доволно информации во официјалната документација за да "
             "одговорам на ова прашање. Ве молам обратете се до студентската "
             "служба на УГД за точен одговор."
         )
- 
-    context = "\n\n---\n\n".join(context_chunks)
-    client = get_llm_client()
-    resp = client.chat.completions.create(
-        model=settings.llm_model,
+    context = "\n\n---\n\n".join(context_chunks) # se spojuvaat site parcinja, razdeleni so --- prazno mesto. Bez XML izolacija
+    client = get_llm_client()   # zemame go klientot
+    resp = client.chat.completions.create(  # se povikuva llm ot
+        model=settings.llm_model,   # se zema koj model se koriste od .env
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {
@@ -54,58 +53,52 @@ def generate_answer(question: str, context_chunks: list[str]) -> str:
                            f"Прашање: {question}",
             },
         ],
-        temperature=0.0,
+        temperature=0.0, # 0 e najdeterministicki, se zema prace za odgovor koj e najblisku do prasanjeeto
     )
     return (resp.choices[0].message.content or "").strip()
 
 
 # ---- Verzija za /chat i /chat/stream (parchinja so metadata + istorija) ----
-
-def _build_context(parchinja: list[dict]) -> str:
-    """XML izolacija: kontekstot e PODATOK, ne instrukcija."""
-    delovi = []
-    for dok_br, parche in enumerate(parchinja, 1):
-        podatoci = parche.get("payload", {})
-        oznaka = podatoci.get("title", podatoci.get("source", "?"))
+def _build_context(parchinja: list[dict]) -> str:   # se zema xml 
+    """XML izolacija: kontekstot e POD  ATOK, ne instrukcija."""
+    delovi = [] # se gradi <doc> blokot
+    for dok_br, parche in enumerate(parchinja, 1):  # se pominuva niz nite parcinja so reden broj, enumeration od 1 se pocnuva do doc id = 1, 2, 3
+        podatoci = parche.get("payload", {}) # se zema payload: ako e prazen recnik 
+        oznaka = podatoci.get("title", podatoci.get("source", "?")) # naslov za prikaz, title, ako nema source nema nema ? 
         clen = f" | {podatoci['article_no']}" if podatoci.get("article_no") else ""
-        # limit po parche — kirilica troshi ~2-4 tokeni po zbor, a Groq free
-        # tier ima 12k tokeni/min; bez limit golemi parchinja go probivaat
         tekst = parche.get("text", "")[:3500].replace("<", "&lt;").replace(">", "&gt;")
         delovi.append(f'<doc id="{dok_br}" source="{oznaka}{clen}">\n{tekst}\n</doc>')
     return "<context>\n" + "\n".join(delovi) + "\n</context>"
 
-
-def _build_messages(prashanje: str, parchinja: list[dict],
-                    istorija: list[dict]) -> list[dict]:
-    poraki: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    poraki.extend(istorija)
-    poraki.append({"role": "user",
+# se gradi porakata za LLM sistem istorija i tekovno prasanje
+def _build_messages(prashanje: str, parchinja: list[dict], istorija: list[dict]) -> list[dict]:
+    poraki: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}] # prvata poraka e sistemskiot promet, za da razbere follow up 
+    poraki.extend(istorija) # se dodava prethodnite poraki od sesijata, za da se razbere follow up
+    poraki.append({"role": "user",  # 
                    "content": f"{_build_context(parchinja)}\n\n"
                               f"Прашање на студентот: {prashanje}"})
     return poraki
 
+#glavna funkcija za cel odgovor odednas, istorija e opcionalno
+def generate(prashanje: str, parchinja: list[dict], istorija: list[dict] | None = None) -> str:
+    resp = get_llm_client().chat.completions.create(   # se povikuva llm ot
+        model=settings.llm_model,   # se zima modelot od .env
+        messages=_build_messages(prashanje, parchinja, istorija or []), # se gradat porakite, istorija or [] ako e none, korsni prazna lista
+        temperature=settings.llm_temperature,   # temperaturata vo env e niska so toa imame pomala halucinacija
+        max_tokens=settings.max_answer_tokens,  # max dolzina na odgovorot
+    )
+    return (resp.choices[0].message.content or "").strip()  # se zima sodrzinata, i se iscistat praznite mesta
 
-def generate(prashanje: str, parchinja: list[dict],
-             istorija: list[dict] | None = None) -> str:
-    resp = get_llm_client().chat.completions.create(
+# funkcija za token po teken , ova e generator
+def stream_generate(prashanje: str, parchinja: list[dict],istorija: list[dict] | None = None):
+    strim = get_llm_client().chat.completions.create(   #istiot povik, no 
         model=settings.llm_model,
         messages=_build_messages(prashanje, parchinja, istorija or []),
         temperature=settings.llm_temperature,
         max_tokens=settings.max_answer_tokens,
+        stream=True,    # strema = True llm ot vraka del po del kako sto generira, namesta da se ceka na se
     )
-    return (resp.choices[0].message.content or "").strip()
-
-
-def stream_generate(prashanje: str, parchinja: list[dict],
-                    istorija: list[dict] | None = None):
-    strim = get_llm_client().chat.completions.create(
-        model=settings.llm_model,
-        messages=_build_messages(prashanje, parchinja, istorija or []),
-        temperature=settings.llm_temperature,
-        max_tokens=settings.max_answer_tokens,
-        stream=True,
-    )
-    for delce in strim:
-        delta = delce.choices[0].delta.content if delce.choices else None
-        if delta:
-            yield delta
+    for delce in strim: # pominuva nis sekoe parce od strimot
+        delta = delce.choices[0].delta.content if delce.choices else None   # se vadi noviot tekst. Kaj streaming se dava delta samo razlikata i noviot del.
+        if delta:   # ako ima nov tekst
+            yield delta # se praka vednas, yield go pauzira oba, go dava delceto na povikuvacot i prodolzuva od tuka pri sledno baranje
