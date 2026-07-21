@@ -8,16 +8,16 @@ _encoder = None # globalna promeliva za modelot, none znaci deka modelot ne e vc
 _load_failed = False #znamenca, proverka dali vcituvanjeto porpadnalo, dokolku ne uspee da ne se probuva pri sekoe postaveno prasanje
 
 def _get_encoder():
-    global _encoder, _load_failed
-    if _encoder is None and not _load_failed:
-        try:
+    global _encoder, _load_failed   # global ke gi menuva globalnite promenlivi, ne da se sozdavaat lokalno
+    if _encoder is None and not _load_failed: # se vcituva samo dokolku pregthodno ne e vcitano i prethodno ne propadnalo, i kako uslov se zema da ne se obiduvame povtorno
+        try:    # dokolku vcituvanjeto padne, nemame dovolno memorija ili internet 
             from fastembed.rerank.cross_encoder import TextCrossEncoder
             logger.info("Вчитувам reranker %s ...", settings.rerank_model)
-            _encoder = TextCrossEncoder(model_name=settings.rerank_model)
-        except Exception as greshka:  # noqa: BLE001
-            _load_failed = True
-            logger.error("Reranker не се вчита (%s) — продолжувам без rerank", greshka)
-    return _encoder
+            _encoder = TextCrossEncoder(model_name=settings.rerank_model)  #sozdavanje na modelot, se simnuva ako go nema kesirano, se pravi samo ednas na pocetokot
+        except Exception as greshka:  # pri nastanuvanje na pad
+            _load_failed = True # oznacuvame deka nastalan pad
+            logger.error("Reranker не се вчита (%s) — продолжувам без rerank", greshka) # log za da vidam dali e uspesno ili ne 
+    return _encoder # se vraka modelot ili dava None ako propadne 
 
 def rerank(prashanje: str, dokumenti: list[str]) -> list[float] | None: #glavna funkcija vraka ocena od 0 ... 1 za sekoj dokument ili none ako reran ne e dostapno
     if not dokumenti: #dokolku ne e najdena dokumentacija
