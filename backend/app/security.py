@@ -13,7 +13,7 @@ _CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")  #Regez za kontrol
 _INJECTION_RE = re.compile( #Regex za najcesti promt injection frazi so prasanje, ako se napise ignore all instructions od strana na korisnikot go faka i go neutralizira 
     r"(?i)(ignore\s+(all\s+)?(previous|prior|above)\s+instructions?|"
     r"disregard\s+(the\s+)?(above|previous|prior)|"
-    r"you\s+are\s+sega\b|act\s+as\s+(a|an)\b|new\s+instructions?\s*:|"
+    r"you\s+are\s+now\b|act\s+as\s+(a|an)\b|new\s+instructions?\s*:|"
     r"system\s*prompt|developer\s+message|reveal\s+your\s+(instructions|prompt)|"
     r"игнорирај\s+ги\s+(претходните|инструкциите|горните)|"
     r"заборави\s+ги\s+претходните|системски\s+промпт)"
