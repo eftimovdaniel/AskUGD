@@ -48,7 +48,7 @@ def retrieve(prashanje: str) -> list[dict]: # dava najrelevantno prace za prasan
         for kandidat, ocena in zip(kandidati, oceni, strict=True):  # spojuvame go sekoj kandidat so negovata ocenka, string = Ture ako dolzinite ne se isti dava greska 
             kandidat["rerank_score"] = ocena    # se zapisuva ocenkata vo kandidat 
         kandidati = [kandidat for kandidat in kandidati # se zadrzuvaat site onie nad pragot
-                     if kandidat["rerank_score"] >= settings.rerank_threshold], # gi trgame site parcinja koj so e slabo relevantni a se pronajdeni
+                     if kandidat["rerank_score"] >= settings.rerank_threshold] # gi trgame site parcinja koj so e slabo relevantni a se pronajdeni
         kandidati.sort(key=lambda kand: kand["rerank_score"], reverse=True) # sortiranje po rerak ocena, ako rerank padne ili ocena e none se razdrazuva orginalniot redosled od serach
 
     najdobri = kandidati[: settings.top_k]  # se zemaat samo najrelevantite parcinja, se prakaat do LLM 
