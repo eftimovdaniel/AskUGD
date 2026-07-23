@@ -34,31 +34,6 @@ def get_llm_client() -> OpenAI:
         raise RuntimeError("LLM_API_KEY не е поставен во .env") # se dava poraka za nastanatata greska
     return OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url,timeout=60.0) # se sozdava klient, so base_url e za menuvanje na provajderot: openai, groq - za da moze da se menuvat bez da se menuva strukturata na celiot kod
  
-def generate_answer(question: str, context_chunks: list[str]) -> str:   # se koristi za generiranje na odgovor
-    if not context_chunks:  # dokolku nema kontekst se vraka porakata vo return
-        return (
-            "Немам доволно информации во официјалната документација за да "
-            "одговорам на ова прашање. Ве молам обратете се до студентската "
-            "служба на УГД за точен одговор."
-        )
-    context = "\n\n---\n\n".join(context_chunks) # se spojuvaat site parcinja, razdeleni so --- prazno mesto. Bez XML izolacija
-    client = get_llm_client()   # zemame go klientot
-    resp = client.chat.completions.create(  # se povikuva llm ot
-        model=settings.llm_model,   # se zema koj model se koriste od .env
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"Контекст од официјалните документи:\n{context}\n\n"
-                           f"Прашање: {question}",
-            },
-        ],
-        temperature=0.0, # 0 e najdeterministicki, se zema prace za odgovor koj e najblisku do prasanjeeto
-    )
-    return (resp.choices[0].message.content or "").strip()
-
-
-# ---- Verzija za /chat i /chat/stream (parchinja so metadata + istorija) ----
 def _build_context(parchinja: list[dict]) -> str:   # se zema xml 
     """XML izolacija: kontekstot e POD  ATOK, ne instrukcija."""
     delovi = [] # se gradi <doc> blokot

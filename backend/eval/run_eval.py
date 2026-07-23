@@ -1,3 +1,7 @@
+## ne se koriste cesto, samo go koristam za da vidam kaj mene vo terminal dali e pronajdeno nekoe parce
+## za da se osiguram deka stvarno vo pozadina rabote, se naogaat parcinja i od kade idat, 
+#moze da e korisno samo koa ke se zgolemam na primer znaenje
+
 from __future__ import annotations
 import sys
 from pathlib import Path
