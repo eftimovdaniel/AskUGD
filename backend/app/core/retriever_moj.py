@@ -1,3 +1,6 @@
+# glavniot main ne rabotese na start e kako zamena - sega ne se koriste
+#mrtov kod 
+
 from __future__ import annotations
 from qdrant_client import QdrantClient
 from app.config import settings
