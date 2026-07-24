@@ -1,3 +1,5 @@
+#Nabljuduvanje na serverot: JSON logovi so request-id, metriki (baranja,
+# greski, latencija) i Timer za merenje vreme. Gi koristi middleware-ot vo main.py
 from __future__ import annotations
 import contextvars
 import json

@@ -1,3 +1,5 @@
+#glaven endpoint, go povrazuva celiot rag tek, postavuvanje na prasanje - retrieval - generiranje odgovor
+
 from __future__ import annotations
 import json
 import logging

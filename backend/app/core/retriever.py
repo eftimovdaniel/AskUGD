@@ -1,3 +1,7 @@
+#vklucen vo celiot prebaruvacki tek, za sekoe prasanje spojuva: prevod ako e na makedonski = angliski, se baraat po 20 kandidati vo bazata so otfrluvanje na duplikat
+#pravi rerank odnosno cross encoder gi otstranuva slabite parcinja koj ne go zadovoluvaat odgovorot, a gi zima najdobrite 5 parcinja sto se prakaat do LLM.
+#dokolku site prebaruvanja padnat, qdrant e nedostapna dava RetrievalUnavailable za api da vrati greska 503. Moze da vade i prikaz od kade idat tie informacii 
+#i moze da se prikazat na frontend delot 
 from __future__ import annotations
 import logging
 from app.config import settings

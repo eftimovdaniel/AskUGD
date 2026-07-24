@@ -1,3 +1,10 @@
+#Bezbednosen sloj na aplikacijata — cetiri zastiti na edno mesto:
+# Rate limiting (RateLimiter / RedisRateLimiter): ogranicuva kolku baranja smee da prati eden korisnik. Dva limitera — po SESIJA (fer po korisnik) i po IP 
+# (povisok, zasto na kampus mnogu studenti se zad ista javna IP/NAT). Redis verzijata e za povekje workers; ako Redis padne — fail-open (pusta, dostapnosta > strogosta).
+#  Bez Redis raboti in-memory (za eden worker).
+# verify_api_key: proveruva API kluc so hmac.compare_digest (constant-time) namesto obicno == — za zastita od timing attack (napagac da go pogodi klucot buka po buka merejki vreme).
+# sanitize_question: cisti kontrolni znaci, skratuva predolgo prasanje i neutralizira prompt-injection frazi ('ignore all instructions') — prv sloj 
+# odbrana pri VLEZ (vtoriot e vo chunker pri polnenje, tretiot e XML izolacija vo generator).
 from __future__ import annotations
 import hmac
 import logging

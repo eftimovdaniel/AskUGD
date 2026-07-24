@@ -1,3 +1,11 @@
+#komunikacija so bazata. Ima dve operacii:
+#1. Polnenje kreiranje na kolekija ako ja nema, zema tekst -> vektor i go zapisuva, brisenje na stari parcinja za da nema duplikati
+#2. Prebaruvanje 
+# Dva vektora po parche: DENSE (semanticko znacenje, 1024 broja preku e5) i SPARSE/BM25 (klucni zborovi). Hybrid gi kombinira preku RRF 
+# za da fakja i znacenje ('upis'≈'zapisuvanje') i tocni zborovi (sifri, iznosi).
+# Lenivo vcituvanje: klientot i modelite se sozdavaat pri prv povik, ne pri start — za pobrz start na serverot.
+# _with_retries: sekoja mrezna operacija se povtoruva 3 pati so backoff, za da ne padne sistemot od privremena greska.
+# Deterministicki ID + upsert = idempotentnost: povtoren ingestion samo prezapisuva, nikogas ne duplira.
 from __future__ import annotations
 import logging
 import time

@@ -1,3 +1,8 @@
+#Web scraper i crawler koj go cita sajtot na UGD za da ja polni bazata. Prezema web-stranici i vadi cist tekst od niv (pri sto HTML tabelite gi pretvora vo Markdown za 
+#da ne se zagubi strukturata na iznosite i rokovite), prezema PDF-ovi, i moze da 'krstari' niz sajtot sledejki gi linkovite na istiot domen do zadadena dlabocina, 
+#pri sto avtomatski gi simnuva i site PDF-ovi sto kje gi najde po pat. Pred sekoe prezemanje ima SSRF zastita — proveruva deka adresata ne vodi kon privatna ili vnatresna IP,
+#za da ne moze napagac da go izmami serverot da pristapi do vnatresni servisi. Isto taka postuva limiti na golemina, timeout, maksimum stranici, pravi pauzi megju baranjata i
+#go postuva robots.txt za da e vcituva kon serverot, a edna padnata stranica ili PDF ne go rusi celiot proces — greskata se zapisuva i rabotata prodolzuva natamu.
 from __future__ import annotations
 import ipaddress
 import logging

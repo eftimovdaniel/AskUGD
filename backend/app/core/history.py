@@ -1,3 +1,5 @@
+#za da se ovozmoze follow up prasanje od studenti
+
 from __future__ import annotations
 import json
 import logging

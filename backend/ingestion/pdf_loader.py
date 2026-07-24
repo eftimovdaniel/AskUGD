@@ -1,3 +1,9 @@
+#Vadi cist tekst od PDF dokument so bibliotekata PyMuPDF. Go otvora PDF-ot, cita stranica po stranica i go rekonstruira tekstot vo citliv oblik, a potoa go cisti 
+#povtoruvackiot sum sto se javuva na sekoja stranica (zaglavija od tip 'Univerzitetski glasnik', 'Stranica 3/8', disclaimer-i) kako i nevidlivite karakteri sto ne se gledaat no go rasipuvaat 
+#prebaruvanjeto. Ima dve javni funkcii — edna za citanje od fajl na disk, druga za citanje direktno od bajti vo memorija (za PDF-ovi prezemeni od web, bez zapis na disk), 
+#a dvete ja delat istata logika za vadenje. Postuva limiti na golemina i broj stranici, gi preskoknuva zakluchenite (so lozinka) i ostetenite stranici bez da padne, i 
+#frla jasna greska ako PDF-ot nema izvlecliv tekst — sto najcesto znaci deka e skeniran dokument (slika), za koj bi trebalo OCR.
+
 from __future__ import annotations
 import logging
 import re

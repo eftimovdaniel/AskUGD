@@ -1,3 +1,7 @@
+#preveduvanje na prasanjeot na makedonski za da moze da se pobrzo i polesno prebaruvanje
+#Dokumentacijata e na makedonski, ako prasanjeto e na angliski, prvo go preveduvame prasanjeto na makedonski, so LLM povik, pa dvete verzii gi prakame 
+#vo retrieval za posiroka pokrienost. Ako se vide deka nema kirilica vo prasanjeto se pretpostavuva deka e na angliski, nema potreba od prevod, ako se vide kirilica prevod e potreben.
+#kako izlez vrakam TranslationResult nemaesto string, za da pravime razlika od nema potreba od prevod ili prevodot padna. Ako padne prodolzuva na orginalot
 from __future__ import annotations
 import logging
 import re

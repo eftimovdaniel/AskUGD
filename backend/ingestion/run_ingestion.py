@@ -1,3 +1,8 @@
+#Glavniot skript za polnenje na bazata — se pusta racno od terminal za da se napue bazata so novi podatoci (python -m ingestion.run_ingestion). Toj gi spojuva site delovi vo 
+#eden tek: gi cita lokalnite PDF-ovi od data/pdfs i web izvorite od sources.yaml, za sekoj vadi tekst (preku pdf_loader ili html_scraper), go sece na parchinja (preku chunker)
+#i gi zapisuva vo Qdrant (preku vectorstore). Sekoe parche dobiva deterministicki ID napraven od hesh na sodrzinata, pa povtoren ingestion samo prezapisuva bez da duplira 
+#(idempotentnost) — moze da se pusti sto pati bezbedno. Strukturata na papkite (ciklus/fakultet/nasoka) avtomatski stanuva metadata za filtriranje. Greska kaj eden izvor ne 
+# go rusi ostatokot — se zapisuva i se prodolzuva, a na kraj ima izvestaj so vkupno parchinja i lista na neuspesnite izvori. Poddrzuva --dry-run (proba bez zapis) i --only pdf/web.
 from __future__ import annotations
 import argparse
 import hashlib

@@ -1,3 +1,4 @@
+#LLM povikot: sistemski prompt (pravilata), XML izolacija na kontekstot, detekcija na jazik, i generacija na odgovor (cel i token-po-token)
 from __future__ import annotations
 import re
 from functools import lru_cache
@@ -60,7 +61,7 @@ def _build_context(parchinja: list[dict]) -> str:   # se zema xml
 def _build_messages(prashanje: str, parchinja: list[dict], istorija: list[dict]) -> list[dict]:
     poraki: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}] # prvata poraka e sistemskiot promet, za da razbere follow up 
     poraki.extend(istorija) # se dodava prethodnite poraki od sesijata, za da se razbere follow up
-    # detekcija na jazik: ako prasanjeto NEMA kirilica → angliski → silna direktiva
+    # detekcija na jazik: ako prasanjeto NEMA kirilica = angliski = silna direktiva
     # LLM-ot inaku odgovara na mk zasto kontekstot e na mk; ova go prisiluva jazikot
     jazik_direktiva = ("\n\nIMPORTANT: The question is in English. Write your ENTIRE "
                        "answer in ENGLISH (steps, lists, and source label included).")
