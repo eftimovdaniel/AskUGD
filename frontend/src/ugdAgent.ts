@@ -84,6 +84,24 @@ function createTextMessage(className: string, text: string): HTMLParagraphElemen
   return el;
 }
 
+function scrollToBottom(el: HTMLElement): void {
+  // Skrolabilen e RODITELOT (.ugd-ai-panel-body so overflow-y:auto), ne samiot
+  // thread — zatoa se kacuvame nagore dodeka ne najdeme element sto navistina
+  // moze da skrola. requestAnimationFrame ceka DOM-ot da se prerascita, inaku
+  // scrollHeight se cita PRED novata poraka da zafati prostor i ne stiga do dno.
+  const najdiSkrolabilen = (nod: HTMLElement | null): HTMLElement | null => {
+    while (nod) {
+      if (nod.scrollHeight > nod.clientHeight + 4) return nod;
+      nod = nod.parentElement;
+    }
+    return null;
+  };
+  requestAnimationFrame(() => {
+    const cel = najdiSkrolabilen(el);
+    if (cel) cel.scrollTo({ top: cel.scrollHeight, behavior: "smooth" });
+  });
+}
+
 function createTypingIndicator(): HTMLDivElement {
   const typingEl = document.createElement("div");
   typingEl.className = "ugd-ai-typing";
@@ -202,12 +220,12 @@ function setupAgent(): void {
     input.value = "";
     busy = true;
     input.disabled = true;
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    scrollToBottom(messagesEl);
 
     const typingEl = createTypingIndicator();
     const typingRow = wrapAgentBubble(typingEl);
     messagesEl.appendChild(typingRow);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    scrollToBottom(messagesEl);
 
     try {
       const answer = await askBackend(apiBase, text);
@@ -223,7 +241,7 @@ function setupAgent(): void {
       busy = false;
       input.disabled = false;
       input.focus();
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      scrollToBottom(messagesEl);
     }
   });
 }

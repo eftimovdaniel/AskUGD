@@ -263,6 +263,19 @@
     }
     return el;
   }
+  function scrollToBottom(el) {
+    const najdiSkrolabilen = (nod) => {
+      while (nod) {
+        if (nod.scrollHeight > nod.clientHeight + 4) return nod;
+        nod = nod.parentElement;
+      }
+      return null;
+    };
+    requestAnimationFrame(() => {
+      const cel = najdiSkrolabilen(el);
+      if (cel) cel.scrollTo({ top: cel.scrollHeight, behavior: "smooth" });
+    });
+  }
   function createTypingIndicator() {
     const typingEl = document.createElement("div");
     typingEl.className = "ugd-ai-typing";
@@ -362,11 +375,11 @@
       input.value = "";
       busy = true;
       input.disabled = true;
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      scrollToBottom(messagesEl);
       const typingEl = createTypingIndicator();
       const typingRow = wrapAgentBubble(typingEl);
       messagesEl.appendChild(typingRow);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
+      scrollToBottom(messagesEl);
       try {
         const answer = await askBackend(apiBase, text);
         typingRow.remove();
@@ -381,7 +394,7 @@
         busy = false;
         input.disabled = false;
         input.focus();
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+        scrollToBottom(messagesEl);
       }
     });
   }
