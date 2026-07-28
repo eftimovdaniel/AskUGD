@@ -1,8 +1,18 @@
 from __future__ import annotations
 
+import os
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Fiksna kes papka za HuggingFace modelite (embedding/rerank ~3.5GB).
+# Se postavuva PRED fastembed da se importira, za modelite da se simnat EDNAS
+# i sekogas da se najdat tuka — bez razlika kako se startuva serverot.
+# Papkata e do ovoj fajl (backend/.hf_cache), pa e trajna i nezavisna od terminal.
+_HF_CACHE = Path(__file__).resolve().parent.parent / ".hf_cache"
+_HF_CACHE.mkdir(exist_ok=True)
+os.environ.setdefault("HF_HOME", str(_HF_CACHE))
 
 
 class Settings(BaseSettings):
