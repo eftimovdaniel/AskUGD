@@ -15,3 +15,27 @@
 
 - question: "How do I enroll in a semester?"
   expected_source: "Upis_na_semestar"
+
+- question: "Колку чини упис на семестар?"
+  expected_source: "Tarifnik"
+
+- question: "Колку чини еден кредит?"
+  expected_source: "Tarifnik"
+
+- question: "Која е цената за заверка на семестар?"
+  expected_source: "Tarifnik"
+
+- question: "How much does semester enrollment cost?"
+  expected_source: "Tarifnik"
+
+- question: "Кои предмети се слушаат во прв семестар на компјутерски дизајн?"
+  expected_source: "kompjuterski-dizajn"
+
+- question: "Колку кредити носи Математика 1?"
+  expected_source: "kompjuterski-dizajn"
+
+- question: "Кога е уписот на зимски семестар?"
+  expected_source: "kalendar"
+
+- question: "Кога почнува колоквиумската недела?"
+  expected_source: "kalendar"

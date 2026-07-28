@@ -14,7 +14,9 @@ from pathlib import Path
 import yaml
 from app.config import settings
 from app.core.vectorstore import ensure_collection, upsert_chunks, delete_by_source
-from ingestion.chunker import Chunk, chunk_document
+from ingestion.chunker import Chunk, chunk_document, neutralize_injections
+from ingestion.chunker_tabeli import chunk_table_blocks
+from ingestion.table_extractor import extract_tables
 from ingestion.html_scraper import crawl, download_pdf, scrape_url
 from ingestion.pdf_loader import PdfError, load_pdf, load_pdf_bytes
 
@@ -95,6 +97,20 @@ def _replace_source(parchinja: list[Chunk], izvor: str, dry_run: bool) -> int:
         delete_by_source(izvor) #brisenje na stari parcinja za ovoj izvor 
     return _push(parchinja, izvor, dry_run) #zapis na novite
 
+def _parchinja_od_tabeli(pdf, izvor: str, meta_zapis: dict) -> list[Chunk]:
+    try:
+        blokovi = extract_tables(pdf, source=izvor)
+        if not blokovi:
+            return []
+        return chunk_table_blocks(
+            blokovi, source=izvor, doc_type="pdf",
+            title=meta_zapis.get("title") or pdf.stem, url=meta_zapis.get("url"),
+            neutralize=neutralize_injections,
+        )
+    except Exception as greshka:
+        logger.warning("Табели за %s не успеаја: %s", izvor, greshka)
+        return []
+
 def ingest_pdfs(statistika: Stats, dry_run: bool) -> None:  #obrabotka na site lokaln pdf fajlovi
     if not PDF_DIR.exists():    #ako patekate ne postoi
         logger.warning("Нема папка %s", PDF_DIR)
@@ -112,6 +128,10 @@ def ingest_pdfs(statistika: Stats, dry_run: bool) -> None:  #obrabotka na site l
                 tekst, source=izvor, doc_type="pdf",
                 title=meta_zapis.get("title") or pdf.stem, url=meta_zapis.get("url"),
             )
+            for parche in parchinja:
+                parche.metadata.setdefault("content_type", "prose")
+            if meta_zapis.get("tables", True):
+                parchinja += _parchinja_od_tabeli(pdf, izvor, meta_zapis)
             # strukturata na papkite -> metadata (za filtriranje i podobar prikaz)
             pateka_delovi = pdf.relative_to(PDF_DIR).parts[:-1] #delovite od patekata bez imeto na fajlit, [:-1] se osven poslednoto
             for parche in parchinja:      #dodavanje na struktura metadata na sekoe parce

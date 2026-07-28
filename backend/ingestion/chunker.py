@@ -114,6 +114,7 @@ def chunk_document(text: str, source: str, doc_type: str = "pdf", title: str | N
             "chunk_index": len(rezultat),   # reden broj po filtriranje        
             "strategy": "article" if ima_clenovi else "paragraph",  # koja strategija e koristena, delenje na tekstot kako paragraf artikol ili slicno
             "word_count": len(parche.text.split()), # kolku zborovi se izvleceni za eval da vidam dali se vlecat zborovi od znaenjeto vo terminalot
+            "content_type": "prose",
         })
         rezultat.append(parche) #dodavanje vo gotovot parce
     return rezultat #davanje na listata na gotovi prarcinja za zapis vo qdrant
