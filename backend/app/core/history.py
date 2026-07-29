@@ -10,6 +10,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 _MAX_SESSIONS = 5000 # limit, max 5000 sesii vo memorija, zastita od iscrapuvanje na ram vo pikot na baranjeto
+_PURGE_INTERVAL = 60.0
 
 class _Session: # vnatresnata klasa za edna sesija, 
     __slots__ = ("messages", "last_used")   # gi fiksira dozvolenite atributi, so toa se trose pomalku memorija korisno koga ima iljadnici sesii
@@ -22,7 +23,8 @@ class HistoryStore: # in memory sklad za istorija
         self._ttl = ttl # se zacuvuva vo ttl vo sekundi
         self._max_turns = max_turns # kolku posledno poraki se vrakaat kako kontekst
         self._sessions: dict[str, _Session] = {}  #session_id go dava vo Session objekti, bazata vo memorijata
-        self._lock = threading.Lock()   
+        self._lock = threading.Lock()
+        self._last_purge = 0.0
 
     @staticmethod  # staticki metod, ne treba self
     def new_session_id() -> str:    # definira nov unikaten session_id 
@@ -30,6 +32,9 @@ class HistoryStore: # in memory sklad za istorija
 
     def _purge(self) -> None: # cisti isteceni sesii
         sega = time.monotonic() # tekovnoto vreme
+        if sega - self._last_purge < _PURGE_INTERVAL and len(self._sessions) <= _MAX_SESSIONS:
+            return
+        self._last_purge = sega
         isteceni = [session_id for session_id, sesija in self._sessions.items() # se baraat sesiite sto ne se koristeni podolgo od ttl
                    if sega - sesija.last_used > self._ttl]  # uslovot e da e pominalo poveke vreme od ttl od poseldnata upotreba
         for session_id in isteceni: # za sekoja istecena sesija

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
@@ -6,19 +7,30 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.chat import router as chat_router
 from app.config import settings
-from app.core import vectorstore
+from app.core import rerank, vectorstore
 from app.observability import Timer, metrics, request_id_var, setup_logging
 from app.security import verify_api_key
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
+def _warmup() -> None:
+    try:
+        list(vectorstore._get_dense().embed(["query: загревање"]))
+        if settings.use_hybrid:
+            list(vectorstore._get_sparse().embed(["загревање"]))
+        rerank.rerank("загревање", ["документ за загревање"])
+        logger.info("Моделите се вчитани (warmup)")
+    except Exception as greshka:
+        logger.warning("Warmup не успеа: %s", greshka)
+
 @asynccontextmanager
-async def _lifespan(_: FastAPI):  
-    if not settings.api_access_key: #proverka dali api key e postaven ili ne 
+async def _lifespan(_: FastAPI):
+    if not settings.api_access_key: #proverka dali api key e postaven ili ne
         logger.warning("API_ACCESS_KEY не е поставен — /chat е ЈАВНО достапен!")    #vo log vraka poraka za greska
     if not settings.cors_origin_list:   #ako cors ne postoi
         logger.warning("CORS_ORIGINS не е поставен — browser барања нема да работат.")  #predupreduvanje vo log
+    await asyncio.to_thread(_warmup)
     yield # orabotka na baranjata, kodot pred nego e star a posle e za gasnenje
 
 app = FastAPI(title="AskUGD", version="1.0.0",  #sozdavanje na fastapi aplikacija so naslov i verzija, objasnuvanje i lifespan
