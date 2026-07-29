@@ -287,10 +287,10 @@
     }
     return typingEl;
   }
-  async function askBackend(apiBase, question) {
+  async function streamBackend(apiBase, question, onUpdate) {
     let response;
     try {
-      response = await fetch(`${apiBase}/chat`, {
+      response = await fetch(`${apiBase}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question })
@@ -303,7 +303,7 @@
     if (response.status === 429) {
       throw new Error(COPY.rateLimit);
     }
-    if (!response.ok) {
+    if (!response.ok || !response.body) {
       let detail = COPY.error;
       try {
         const payload = await response.json();
@@ -316,8 +316,39 @@
       }
       throw new Error(detail);
     }
-    const data = await response.json();
-    return (data.answer || "").trim() || COPY.error;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let full = "";
+    let streamError = null;
+    for (; ; ) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+        let evt;
+        try {
+          evt = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+        if (evt.type === "token" && evt.token) {
+          full += evt.token;
+          onUpdate(full);
+        } else if (evt.type === "error") {
+          streamError = evt.message || COPY.error;
+        }
+      }
+    }
+    if (!full) {
+      throw new Error(streamError || COPY.error);
+    }
   }
   function initUgdAgent() {
     if (document.readyState === "loading") {
@@ -380,16 +411,26 @@
       const typingRow = wrapAgentBubble(typingEl);
       messagesEl.appendChild(typingRow);
       scrollToBottom(messagesEl);
+      const botEl = createTextMessage("ugd-ai-msg ugd-ai-msg-agent", "");
+      const botRow = wrapAgentBubble(botEl);
+      let mounted = false;
       try {
-        const answer = await askBackend(apiBase, text);
-        typingRow.remove();
-        const botEl = createTextMessage("ugd-ai-msg ugd-ai-msg-agent", answer);
-        messagesEl.appendChild(wrapAgentBubble(botEl));
+        await streamBackend(apiBase, text, (fullText) => {
+          if (!mounted) {
+            typingRow.remove();
+            messagesEl.appendChild(botRow);
+            mounted = true;
+          }
+          botEl.innerHTML = renderMarkdown(fullText);
+          scrollToBottom(messagesEl);
+        });
       } catch (err) {
-        typingRow.remove();
         const message = err instanceof Error ? err.message : COPY.error;
-        const botEl = createTextMessage("ugd-ai-msg ugd-ai-msg-agent", message);
-        messagesEl.appendChild(wrapAgentBubble(botEl));
+        if (!mounted) {
+          typingRow.remove();
+          const errEl = createTextMessage("ugd-ai-msg ugd-ai-msg-agent", message);
+          messagesEl.appendChild(wrapAgentBubble(errEl));
+        }
       } finally {
         busy = false;
         input.disabled = false;

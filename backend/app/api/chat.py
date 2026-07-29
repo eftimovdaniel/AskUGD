@@ -120,26 +120,57 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
 
 @router.post("/chat/stream")
 def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
-    prashanje, session_id, prethodni_poraki, parchinja = _prepare(req)
-    def event(podatoci: dict) -> str:   # se foramtira recenicata vo sse format
-        return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"  # sse bara tocno data <tekst>\n\n. ensure_ascii ja pravi kirilicata citliva 
-    def stream():   # generator funkcija sekoj `yield` praka edno parce kon klientot bez da ceka da se dobie se
-        yield event({"type": "sources", "sources": extract_sources(parchinja), "session_id": session_id}) #widgetot moze da gi prikaze referencite dodeka odgovoror uste se pisuva
-        delovi_odgovor: list[str] = []  # se sobira listata na site tokeni za na kraj da go zacuvame celiot odgovor vo istorijata
+    prashanje, oznaceno = sanitize_question(req.question)
+    if oznaceno:
+        logger.warning("Injection обид детектиран во прашање")
+    if not prashanje:
+        raise HTTPException(status_code=422, detail="Празно прашање")
+
+    session_id = req.session_id or history.new_session_id()
+    prethodni_poraki = history.get(session_id)
+    kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
+
+    def event(podatoci: dict) -> str:
+        return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"
+
+    def stream():
+        if kluc_kes is not None:
+            kesirano = answer_cache.get(kluc_kes)
+            if kesirano is not None:
+                odgovor, izvori = kesirano
+                yield event({"type": "sources", "sources": izvori, "session_id": session_id})
+                yield event({"type": "token", "token": odgovor})
+                history.append(session_id, "user", prashanje)
+                history.append(session_id, "assistant", odgovor)
+                yield event({"type": "done"})
+                return
+
         try:
-            if not parchinja:   # dokolku nema konktest
-                delovi_odgovor.append(NO_INFO_MSG)  # se dava porakata
-                yield event({"type": "token", "token": NO_INFO_MSG})  # prati ja kako eden token
+            parchinja = retrieve(prashanje)
+        except RetrievalUnavailable:
+            logger.exception("Retrieval недостапен")
+            yield event({"type": "error", "message": GENERIC_ERROR})
+            return
+        izvori = extract_sources(parchinja)
+        yield event({"type": "sources", "sources": izvori, "session_id": session_id})
+        delovi_odgovor: list[str] = []
+        try:
+            if not parchinja:
+                delovi_odgovor.append(NO_INFO_MSG)
+                yield event({"type": "token", "token": NO_INFO_MSG})
             else:
-                for token in stream_generate(prashanje, parchinja, prethodni_poraki): #stream_generate e generatot sto dava del po del od odgovorot kako sto pristignuva od LLM 
-                    delovi_odgovor.append(token) # se cuva tokento za istorijata
-                    yield event({"type": "token", "token": token})# se ispraka tokentot vo momentot koga pristignuva
-        except Exception:  # dokolku nesto padne dodeka se generira 
+                for token in stream_generate(prashanje, parchinja, prethodni_poraki):
+                    delovi_odgovor.append(token)
+                    yield event({"type": "token", "token": token})
+        except Exception:
             logger.exception("Streaming генерацијата падна")
-            yield event({"type": "error", "message": GENERIC_ERROR})# se dava GENERIC_ERROR prikazana pogore
-            return  # se prekinuva generatorot
+            yield event({"type": "error", "message": GENERIC_ERROR})
+            return
+        odgovor = "".join(delovi_odgovor)
+        if kluc_kes is not None and parchinja:
+            answer_cache.set(kluc_kes, (odgovor, izvori))
         history.append(session_id, "user", prashanje)
-        history.append(session_id, "assistant", "".join(delovi_odgovor))
-        yield event({"type": "done"}) # se dava signal deka odgovorot e zavrasen 
-# se dava generatorot kako strema
-    return StreamingResponse(stream(), media_type="text/event-stream",headers={"Cache-Control": "no-cache","X-Accel-Buffering": "no"})
+        history.append(session_id, "assistant", odgovor)
+        yield event({"type": "done"})
+
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
