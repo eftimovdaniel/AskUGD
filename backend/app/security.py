@@ -50,22 +50,23 @@ class RateLimiter:
 
 class RedisRateLimiter:
     def __init__(self, url: str, limit: int, window_seconds: int = 60) -> None:
-        import redis  
+        import redis
         self.limit = limit
         self.window = window_seconds
         self._r = redis.Redis.from_url(url, decode_responses=True, socket_timeout=2)
+        self._fallback = RateLimiter(limit=limit, window_seconds=window_seconds)
 
     def allow(self, key: str) -> bool:  #insti interfejs kako in memory
         try:
-            redis_kluc = f"rl:{key}"    # kluc vo redis 
+            redis_kluc = f"rl:{key}"    # kluc vo redis
             pipe = self._r.pipeline()   # pipline grupirani komandi za da se pratat na ednas i so toa e pobrzo
             pipe.incr(redis_kluc)   #incr gp zolemuvame brojacot za 1
-            pipe.expire(redis_kluc, self.window, nx=True)     #expire nx=true postavuva istekuvanje samo ako veke nema 
-            brojac, _ = pipe.execute()  # izvrsuvame gi dvete, se zema rezultatot od incr 
+            pipe.expire(redis_kluc, self.window, nx=True)     #expire nx=true postavuva istekuvanje samo ako veke nema
+            brojac, _ = pipe.execute()  # izvrsuvame gi dvete, se zema rezultatot od incr
             return int(brojac) <= self.limit    # se dozvoluva ako brojacot e pod limit
         except Exception as greshka:  # dokolku imame pad od redis
-            logger.warning("Redis rate limit недостапен (%s) — fail-open", greshka)
-            return True # dozvoluva, se pusta baranje = podobro, namesto da padne celiot servis
+            logger.warning("Redis rate limit недостапен (%s) — fallback на in-memory", greshka)
+            return self._fallback.allow(key)
 
 def _make_limiter(limit: int):  #izbira redis ili in memory spored konfiguracijata
     if settings.redis_url:  # dokolku redis_url e postaven

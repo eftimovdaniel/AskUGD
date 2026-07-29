@@ -22,12 +22,19 @@ GENERIC_ERROR = "Настана грешка при обработката. Об
 
 # funkcija koja ja vraka ip adresata na klientot od koe ide baranjeto
 def _client_ip(request: Request) -> str:
-    # x-forwarded-for se pocituva samo ako sme zad reverse proxy inaku klineto moze da go lazira i da go zaobikoli ip limitot
-    if settings.trust_proxy_headers:
-        prosleden = request.headers.get("x-forwarded-for")  # go cita headerot sto proxy to go postavuva so realnata ip adresa na klientoto
-        if prosleden: # dokolku postoi se zima prvata ip adresa, split(",")[0] ja zema prvata adresa, a .strip() brise prazni mesta
-            return prosleden.split(",")[0].strip()
-    return request.client.host if request.client else "unknown" # inaku se zema ip direktno od konekcijata, ako ja nema se dava unknown
+    direkten = request.client.host if request.client else "unknown"
+    if not settings.trust_proxy_headers:
+        return direkten
+    prosleden = request.headers.get("x-forwarded-for")
+    if not prosleden:
+        return direkten
+    lanec = [ip.strip() for ip in prosleden.split(",") if ip.strip()]
+    if not lanec:
+        return direkten
+    indeks = settings.trusted_proxy_hops
+    if len(lanec) >= indeks + 1:
+        return lanec[-(indeks + 1)]
+    return lanec[0]
 
 #bezbednosna porata se izvrasuva pred sekoj povik
 def guard(req: ChatRequest, request: Request) -> None:

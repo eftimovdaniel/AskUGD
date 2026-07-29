@@ -4,7 +4,6 @@ import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.api.chat import router as chat_router
 from app.config import settings
 from app.core import vectorstore
@@ -13,7 +12,6 @@ from app.security import verify_api_key
 
 setup_logging()
 logger = logging.getLogger(__name__)
-
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):  
@@ -24,8 +22,7 @@ async def _lifespan(_: FastAPI):
     yield # orabotka na baranjata, kodot pred nego e star a posle e za gasnenje
 
 app = FastAPI(title="AskUGD", version="1.0.0",  #sozdavanje na fastapi aplikacija so naslov i verzija, objasnuvanje i lifespan
-              description="RAG асистент за студенти на УГД",    
-              lifespan=_lifespan)
+              description="RAG асистент за студенти на УГД", lifespan=_lifespan)
 
 _domeni = settings.cors_origin_list # zamenuvanje na dozvoleni domeni od env vo cors
 if _domeni: #dokolku se postaveni
@@ -37,7 +34,20 @@ if _domeni: #dokolku se postaveni
         allow_headers=["Content-Type", "X-API-Key"],    #koi headers smee da gi prati kliento
     )
 
-@app.middleware("http") #middleweate kod sto se izvrasuva okolu sekoe baranje 
+_MAX_BODY_BYTES = 64 * 1024
+
+@app.middleware("http")
+async def body_size_limit(request: Request, call_next) -> Response:
+    if request.method in ("POST", "PUT", "PATCH"):
+        content_length = request.headers.get("content-length")
+        if content_length and content_length.isdigit() and int(content_length) > _MAX_BODY_BYTES:
+            return Response(
+                content='{"detail":"Барањето е преголемо"}',
+                status_code=413, media_type="application/json",
+            )
+    return await call_next(request)
+
+@app.middleware("http") #middleweate kod sto se izvrasuva okolu sekoe baranje
 async def observability_middleware(request: Request, call_next) -> Response:   #dojdoven request, call_next funkcija sto go izvrasuva vistinskiot endpoint
     id_baranje = uuid.uuid4().hex[:12] #generiranje na unikaten id na request za sledenje 
     request_id_var.set(id_baranje)  #postavuvanje vo contextvar, site baranja avtomatski go nosta ovoj id 
@@ -69,8 +79,10 @@ def ready() -> Response:
         return Response(content='{"status":"ready"}', media_type="application/json")    # dokolku e spremna vraka 200 ok 
     return Response(content='{"status":"not ready"}', status_code=503, media_type="application/json")   # dokolku ne e spremna vraka 503 
 
-@app.get("/metrics")    #statistika 
+@app.get("/metrics")    #statistika
 async def get_metrics(request: Request) -> dict:   #prime request za da go proveri api klucot
+    if not settings.api_access_key:
+        raise HTTPException(status_code=403, detail="Metrics се затворени: постави API_ACCESS_KEY")
     if not verify_api_key(request.headers.get("x-api-key")):   #zastita, metrikite na se javni
         raise HTTPException(status_code=401, detail="Невалиден API клуч")   #dokolku ne se pojavi validen api kluc
     return metrics.snapshot()   # vrakame tekovna statistika
