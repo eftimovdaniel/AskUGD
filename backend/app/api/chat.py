@@ -6,6 +6,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.config import settings
+from app.core.cache import answer_cache, normalize_key
 from app.core.generator import generate, stream_generate
 from app.core.history import history
 from app.core.retriever import RetrievalUnavailable, extract_sources, retrieve
@@ -67,21 +68,53 @@ def _prepare(req: ChatRequest) -> tuple[str, str, list[dict], list[dict]]:
 # 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
-    prashanje, session_id, prethodni_poraki, parchinja = _prepare(req)  # se zemaat site 4 paketi sto prethodno se vrateni
-    if not parchinja:   # dokolku retrieval ne pronajde nesto relevantno
-        odgovor = NO_INFO_MSG   # se vraka porakata
-    else: # inaku dokolku ima kontekst, se generira odgovor
+    prashanje, oznaceno = sanitize_question(req.question)
+    if oznaceno:
+        logger.warning("Injection обид детектиран во прашање")
+    if not prashanje:
+        raise HTTPException(status_code=422, detail="Празно прашање")
+
+    session_id = req.session_id or history.new_session_id()
+    prethodni_poraki = history.get(session_id)
+
+    kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
+    if kluc_kes is not None:
+        kesirano = answer_cache.get(kluc_kes)
+        if kesirano is not None:
+            odgovor, izvori = kesirano
+            history.append(session_id, "user", prashanje)
+            history.append(session_id, "assistant", odgovor)
+            return ChatResponse(
+                answer=odgovor,
+                sources=[Source(**izvor) for izvor in izvori],
+                session_id=session_id,
+            )
+
+    try:
+        parchinja = retrieve(prashanje)
+    except RetrievalUnavailable:
+        logger.exception("Retrieval недостапен")
+        raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None
+
+    if not parchinja:
+        odgovor = NO_INFO_MSG
+    else:
         try:
-            odgovor = generate(prashanje, parchinja, prethodni_poraki)  # se povikuva LLM na pronajdentot prasanje
-        except Exception:  # se vraka bilo koja greska 
+            odgovor = generate(prashanje, parchinja, prethodni_poraki)
+        except Exception:
             logger.exception("Генерацијата падна")
-            raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None    # se dava 503 error na klientska strana, bez da imame tehnicki objasnuvanje 
-    history.append(session_id, "user", prashanje)   #se zapisuva vo istorijata so uloga user, za da se zacuva dokolku llm padne pred da vrate odgovor
-    history.append(session_id, "assistant", odgovor) # se zapisuva odgovorot so uloga assistant
-    return ChatResponse( # se sostavuva finalniot odgovor spored modelot
-        answer=odgovor, # tekstot na odgovorot
-        sources=[Source(**izvor) for izvor in extract_sources(parchinja)],  # extract_sources vraka recenica, source sekoja recenija ja pretvara vo source objekt 
-        session_id=session_id,  # go dava session_id za klientoto da go prati vo slednoto baranje za da moze da imam vrzano baranje
+            raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None
+
+    izvori = extract_sources(parchinja)
+    if kluc_kes is not None and parchinja:
+        answer_cache.set(kluc_kes, (odgovor, izvori))
+
+    history.append(session_id, "user", prashanje)
+    history.append(session_id, "assistant", odgovor)
+    return ChatResponse(
+        answer=odgovor,
+        sources=[Source(**izvor) for izvor in izvori],
+        session_id=session_id,
     )
 
 

@@ -40,9 +40,12 @@ class Settings(BaseSettings):
     trusted_proxy_hops: int = 1
     max_question_chars: int = 1000
 
-    #Историја на разговор 
+    #Историја на разговор
     history_ttl_seconds: int = 3600
-    history_max_turns: int = 6          
+    history_max_turns: int = 6
+
+    cache_ttl_seconds: int = 900
+    cache_max_size: int = 1000
 
     redis_url: str = ""              
 

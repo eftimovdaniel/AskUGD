@@ -85,4 +85,5 @@ async def get_metrics(request: Request) -> dict:   #prime request za da go prove
         raise HTTPException(status_code=403, detail="Metrics се затворени: постави API_ACCESS_KEY")
     if not verify_api_key(request.headers.get("x-api-key")):   #zastita, metrikite na se javni
         raise HTTPException(status_code=401, detail="Невалиден API клуч")   #dokolku ne se pojavi validen api kluc
-    return metrics.snapshot()   # vrakame tekovna statistika
+    from app.core.cache import answer_cache
+    return {**metrics.snapshot(), **answer_cache.stats()}   # vrakame tekovna statistika
