@@ -88,7 +88,6 @@ def get_llm_client() -> OpenAI:
     return OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url,timeout=60.0) # se sozdava klient, so base_url e za menuvanje na provajderot: openai, groq - za da moze da se menuvat bez da se menuva strukturata na celiot kod
  
 def _build_context(parchinja: list[dict]) -> str:   # se zema xml 
-    """XML izolacija: kontekstot e POD  ATOK, ne instrukcija."""
     delovi = [] # se gradi <doc> blokot
     for dok_br, parche in enumerate(parchinja, 1):  # se pominuva niz nite parcinja so reden broj, enumeration od 1 se pocnuva do doc id = 1, 2, 3
         podatoci = parche.get("payload", {}) # se zema payload: ako e prazen recnik 
