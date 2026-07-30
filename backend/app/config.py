@@ -26,10 +26,11 @@ class Settings(BaseSettings):
     rerank_model: str = "jinaai/jina-reranker-v2-base-multilingual"
 
     #Retrieval
-    candidate_k: int = 20            
-    top_k: int = 5                  
-    rerank_threshold: float = 0.1    
+    candidate_k: int = 20
+    top_k: int = 5
+    rerank_threshold: float = 0.1
     max_retrieval_iterations: int = 3
+    use_translation: bool = True
 
     # --- API безбедност ---
     api_access_key: str | None = None   

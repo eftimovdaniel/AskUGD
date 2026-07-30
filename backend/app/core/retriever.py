@@ -16,6 +16,8 @@ class RetrievalUnavailable(Exception):  # greska od tip na toa deka the database
 
 def _query_variants(prashanje: str) -> list[str]: #se pravi poveke verzii na prasanjeto (orginalot i prevod), site dokumenti se na mkd, ako se postave prasanje od student na angliski se preveduva vednas
     varijanti = [prashanje] # pocnuvam so orginalnoto prasanje, postaveno od strana na studentot
+    if not settings.use_translation:
+        return varijanti
     rezultat = translate_query(prashanje) #obid da se napravi prevod, vraka TranslationResult objekt
     prevod = rezultat.translated   # se vadi prevodot, dokolku go ima ili vraka None dokolku ne moze da se prevede
     if prevod and prevod.lower() != prashanje.lower():  # go dodavam samo ako ima prevod i e razlicen od orginalot, ako e na mkd ne mora da se preveduva na mkd 
