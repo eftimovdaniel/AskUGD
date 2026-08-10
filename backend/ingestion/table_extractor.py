@@ -1,3 +1,4 @@
+#nova verzija na vaj fajl
 from __future__ import annotations
 import logging
 import re
