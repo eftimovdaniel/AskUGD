@@ -242,16 +242,8 @@
     return row;
   }
   function renderMarkdown(text) {
-    const escaped = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    return escaped
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/^#{1,4}\s+(.*)$/gm, "<strong>$1</strong>")
-      .replace(/^\s*[-•]\s+(.*)$/gm, "&nbsp;&nbsp;• $1")
-      .replace(/^\s*(\d+)\.\s+(.*)$/gm, "&nbsp;&nbsp;$1. $2")
-      .replace(/\n/g, "<br>");
+    const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/^#{1,4}\s+(.*)$/gm, "<strong>$1</strong>").replace(/^\s*[-•]\s+(.*)$/gm, "&nbsp;&nbsp;\u2022 $1").replace(/^\s*(\d+)\.\s+(.*)$/gm, "&nbsp;&nbsp;$1. $2").replace(/\n/g, "<br>");
   }
   function createTextMessage(className, text) {
     const el = document.createElement("p");
@@ -264,16 +256,9 @@
     return el;
   }
   function scrollToBottom(el) {
-    const najdiSkrolabilen = (nod) => {
-      while (nod) {
-        if (nod.scrollHeight > nod.clientHeight + 4) return nod;
-        nod = nod.parentElement;
-      }
-      return null;
-    };
     requestAnimationFrame(() => {
-      const cel = najdiSkrolabilen(el);
-      if (cel) cel.scrollTo({ top: cel.scrollHeight, behavior: "smooth" });
+      const cel = el.closest(".ugd-ai-panel-body") ?? el;
+      cel.scrollTo({ top: cel.scrollHeight, behavior: "smooth" });
     });
   }
   function createTypingIndicator() {

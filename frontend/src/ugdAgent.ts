@@ -85,20 +85,14 @@ function createTextMessage(className: string, text: string): HTMLParagraphElemen
 }
 
 function scrollToBottom(el: HTMLElement): void {
-  // Skrolabilen e RODITELOT (.ugd-ai-panel-body so overflow-y:auto), ne samiot
-  // thread — zatoa se kacuvame nagore dodeka ne najdeme element sto navistina
-  // moze da skrola. requestAnimationFrame ceka DOM-ot da se prerascita, inaku
-  // scrollHeight se cita PRED novata poraka da zafati prostor i ne stiga do dno.
-  const najdiSkrolabilen = (nod: HTMLElement | null): HTMLElement | null => {
-    while (nod) {
-      if (nod.scrollHeight > nod.clientHeight + 4) return nod;
-      nod = nod.parentElement;
-    }
-    return null;
-  };
+  // Skrolame SAMO vo telото na chat-panelot (.ugd-ai-panel-body so overflow-y:auto),
+  // NIKOGAS celiot sajt. Porano se kacuvavme nagore po roditelite dodeka ne najdeme
+  // "skrolabilen" element, no toa ponekogas go fakase celata stranica i ja vlecese
+  // nadolu. Sega targetirame tocno panel-body preku closest(); ako go nema, skrolame
+  // go samiot thread. requestAnimationFrame ceka DOM-ot da ja dodade novata poraka.
   requestAnimationFrame(() => {
-    const cel = najdiSkrolabilen(el);
-    if (cel) cel.scrollTo({ top: cel.scrollHeight, behavior: "smooth" });
+    const cel = (el.closest(".ugd-ai-panel-body") as HTMLElement | null) ?? el;
+    cel.scrollTo({ top: cel.scrollHeight, behavior: "smooth" });
   });
 }
 
