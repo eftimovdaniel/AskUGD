@@ -45,7 +45,7 @@ function getApiBase(root: HTMLElement): string {
 function createAgentAvatar(): HTMLImageElement {
   const img = document.createElement("img");
   img.className = "ugd-ai-avatar";
-  img.src = assetUrl("assets/goce.jpg");
+  img.src = assetUrl("assets/udg_symbol.png");
   img.alt = "";
   img.setAttribute("aria-hidden", "true");
   return img;

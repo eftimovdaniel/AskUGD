@@ -70,7 +70,7 @@
 
   // src/widgetMarkup.ts
   function getWidgetMarkup(apiUrl2) {
-    const logo = assetUrl("assets/goce.jpg");
+    const logo = assetUrl("assets/udg_symbol.png");
     const launcherIcon = assetUrl("assets/ai-agent-icon.png");
     return `
 <div class="ugd-ai-widget" id="ugd-ai-widget" data-open="false" data-api-url="${apiUrl2}">
@@ -229,7 +229,7 @@
   function createAgentAvatar() {
     const img = document.createElement("img");
     img.className = "ugd-ai-avatar";
-    img.src = assetUrl("assets/goce.jpg");
+    img.src = assetUrl("assets/udg_symbol.png");
     img.alt = "";
     img.setAttribute("aria-hidden", "true");
     return img;

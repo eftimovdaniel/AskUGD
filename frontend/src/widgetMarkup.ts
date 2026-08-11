@@ -1,7 +1,7 @@
 import { assetUrl } from "./config";
 
 export function getWidgetMarkup(apiUrl: string): string {
-  const logo = assetUrl("assets/goce.jpg");
+  const logo = assetUrl("assets/udg_symbol.png");
   const launcherIcon = assetUrl("assets/ai-agent-icon.png");
 
   return `
