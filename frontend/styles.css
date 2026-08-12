@@ -2216,8 +2216,19 @@ right: 0;
     --ugd-fab-right: 12px;
   }
   .ugd-ai-widget {
-    --ugd-asst-panel-w: min(400px, calc(100vw - 20px));
-    --ugd-asst-panel-h: min(580px, calc(100vh - 180px));
+    --ugd-asst-panel-w: calc(100vw - 16px);
+    --ugd-asst-panel-h: calc(100vh - 16px);
   }
+  .ugd-ai-panel{
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+  }
+  .ugd-ai-widget .ugd-ai-input-wrap input,
+  .ugd-ai-widget .ugd-ai-input-wrap input[type="text"] {
+    font-size :16px !important;
+}
+.ugd-ai-widget .ugd-ai-footer-form{
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 /* ============================================================================ ИЗГЛЕД: УГД AI асистент — КРАЈ на CSS за агентот ============================================================================ */
+}
