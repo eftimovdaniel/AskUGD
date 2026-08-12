@@ -2215,7 +2215,7 @@ right: 0;
   :root {
     --ugd-fab-right: 12px;
   }
-/*popravaka na delot za mobilen*/
+
   .ugd-ai-widget .ugd-ai-panel {
     position: fixed;
     top: 10px;
@@ -2223,21 +2223,21 @@ right: 0;
     right: 8px;
     bottom: 88px;        
     width: auto;
-    height: 58dvh;
+    height: auto;
     max-width: none;
-    max-height: calc(100dvh -120px);
+    max-height: none;
     border-radius: 16px;
   }
 
-  .ugd-ai-widget .ugd-ai-thread{
-    font-size: 0.85rem;
-  }
-  .ugd-ai-widget .ugd-ai-imput-wrap input,
-  .ugd-ai-widget .ugd-ai-imput-wrap input[type="text"] {
+  /* Полето за пишување: 16px спречува iPhone да зумира при фокус */
+  .ugd-ai-widget .ugd-ai-input-wrap input,
+  .ugd-ai-widget .ugd-ai-input-wrap input[type="text"] {
     font-size: 16px !important;
   }
-    .ugd-ai-widget .ugd-ai-footer-form {
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+
+  /* Простор долу за безбедната зона на iPhone */
+  .ugd-ai-widget .ugd-ai-footer-form {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
 }
 /* ============================================================================ ИЗГЛЕД: УГД AI асистент — КРАЈ на CSS за агентот ============================================================================ */
