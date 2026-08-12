@@ -1,0 +1,80 @@
+<svg viewBox="0 0 1240 540" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#334155"/>
+    </marker>
+    <style>
+      .t{font-size:13px;fill:#0f172a;} .s{font-size:12px;fill:#475569;}
+      .title{font-size:19px;font-weight:700;fill:#0f172a;}
+      .cap{font-size:12.5px;fill:#475569;}
+      .col{font-size:11.5px;font-weight:700;fill:#7c3aed;}
+      .pg{font-size:12px;font-weight:700;fill:#334155;}
+      .cell{font-size:11px;fill:#334155;}
+    </style>
+  </defs>
+  <rect width="1240" height="540" fill="#ffffff"/>
+  <text x="620" y="34" text-anchor="middle" class="title">Табели распространети на повеќе страници</text>
+
+  <!-- ===== PAGE 1 ===== -->
+  <text x="220" y="72" text-anchor="middle" class="pg">Страница 1</text>
+  <rect x="70" y="82" width="300" height="150" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.6"/>
+  <!-- header row -->
+  <rect x="70" y="92" width="300" height="30" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1"/>
+  <text x="120" y="112" text-anchor="middle" class="cell">Услуга</text>
+  <text x="230" y="112" text-anchor="middle" class="cell">Шифра</text>
+  <text x="330" y="112" text-anchor="middle" class="cell">Цена</text>
+  <!-- rows -->
+  <line x1="70" y1="152" x2="370" y2="152" stroke="#e2e8f0"/>
+  <line x1="70" y1="182" x2="370" y2="182" stroke="#e2e8f0"/>
+  <line x1="70" y1="212" x2="370" y2="212" stroke="#e2e8f0"/>
+  <text x="120" y="142" text-anchor="middle" class="cell">Упис</text><text x="230" y="142" text-anchor="middle" class="cell">A1</text><text x="330" y="142" text-anchor="middle" class="cell">1500</text>
+  <text x="120" y="172" text-anchor="middle" class="cell">Уверение</text><text x="230" y="172" text-anchor="middle" class="cell">A2</text><text x="330" y="172" text-anchor="middle" class="cell">300</text>
+  <text x="120" y="202" text-anchor="middle" class="cell">Диплома</text><text x="230" y="202" text-anchor="middle" class="cell">A3</text><text x="330" y="202" text-anchor="middle" class="cell">1000</text>
+
+  <!-- ===== PAGE 2 ===== -->
+  <text x="220" y="292" text-anchor="middle" class="pg">Страница 2 — продолжение (без заглавие)</text>
+  <rect x="70" y="302" width="300" height="122" rx="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.6"/>
+  <line x1="70" y1="332" x2="370" y2="332" stroke="#e2e8f0"/>
+  <line x1="70" y1="362" x2="370" y2="362" stroke="#e2e8f0"/>
+  <line x1="70" y1="392" x2="370" y2="392" stroke="#e2e8f0"/>
+  <text x="120" y="322" text-anchor="middle" class="cell">Пренасока</text><text x="230" y="322" text-anchor="middle" class="cell">A4</text><text x="330" y="322" text-anchor="middle" class="cell">500</text>
+  <text x="120" y="352" text-anchor="middle" class="cell">Испис</text><text x="230" y="352" text-anchor="middle" class="cell">A5</text><text x="330" y="352" text-anchor="middle" class="cell">800</text>
+  <text x="120" y="382" text-anchor="middle" class="cell">Дупликат</text><text x="230" y="382" text-anchor="middle" class="cell">A6</text><text x="330" y="382" text-anchor="middle" class="cell">400</text>
+
+  <!-- column x-coordinate guides through both pages -->
+  <line x1="180" y1="82" x2="180" y2="424" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <line x1="285" y1="82" x2="285" y2="424" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="220" y="446" text-anchor="middle" class="col">исти x-координати → исти колони</text>
+
+  <!-- arrow to merged -->
+  <path d="M380 250 C 470 250, 470 250, 560 250" class="s" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="470" y="240" text-anchor="middle" class="s">спој</text>
+
+  <!-- ===== MERGED TABLE ===== -->
+  <text x="880" y="72" text-anchor="middle" class="pg">Споена табела</text>
+  <rect x="600" y="82" width="560" height="330" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <rect x="600" y="92" width="560" height="34" fill="#dcfce7" stroke="#86efac" stroke-width="1"/>
+  <text x="700" y="114" text-anchor="middle" class="t">Услуга</text>
+  <text x="900" y="114" text-anchor="middle" class="t">Шифра</text>
+  <text x="1070" y="114" text-anchor="middle" class="t">Цена</text>
+  <!-- column separators -->
+  <line x1="800" y1="92" x2="800" y2="412" stroke="#bbf7d0"/>
+  <line x1="1000" y1="92" x2="1000" y2="412" stroke="#bbf7d0"/>
+  <!-- rows -->
+  <g class="cell">
+    <text x="700" y="156" text-anchor="middle">Упис</text><text x="900" y="156" text-anchor="middle">A1</text><text x="1070" y="156" text-anchor="middle">1500</text>
+    <text x="700" y="196" text-anchor="middle">Уверение</text><text x="900" y="196" text-anchor="middle">A2</text><text x="1070" y="196" text-anchor="middle">300</text>
+    <text x="700" y="236" text-anchor="middle">Диплома</text><text x="900" y="236" text-anchor="middle">A3</text><text x="1070" y="236" text-anchor="middle">1000</text>
+    <text x="700" y="276" text-anchor="middle">Пренасока</text><text x="900" y="276" text-anchor="middle">A4</text><text x="1070" y="276" text-anchor="middle">500</text>
+    <text x="700" y="316" text-anchor="middle">Испис</text><text x="900" y="316" text-anchor="middle">A5</text><text x="1070" y="316" text-anchor="middle">800</text>
+    <text x="700" y="356" text-anchor="middle">Дупликат</text><text x="900" y="356" text-anchor="middle">A6</text><text x="1070" y="356" text-anchor="middle">400</text>
+  </g>
+  <line x1="600" y1="176" x2="1160" y2="176" stroke="#dcfce7"/>
+  <line x1="600" y1="216" x2="1160" y2="216" stroke="#dcfce7"/>
+  <line x1="600" y1="256" x2="1160" y2="256" stroke="#dcfce7"/>
+  <line x1="600" y1="296" x2="1160" y2="296" stroke="#dcfce7"/>
+  <line x1="600" y1="336" x2="1160" y2="336" stroke="#dcfce7"/>
+
+  <text x="70" y="470" text-anchor="start" class="cap">Редовите од двете страници се спојуваат во една табела; колоните се препознаваат според x-координатите на текстот,</text>
+  <text x="70" y="490" text-anchor="start" class="cap">а не по видливи линии — па заглавието од првата страница важи и за редовите што продолжуваат на втората.</text>
+</svg>
