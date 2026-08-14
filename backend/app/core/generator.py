@@ -38,11 +38,10 @@ SYSTEM_PROMPT = """Ти си AskUGD — интелигентен асистен�
 3.3 НИКОГАШ не ги спомнувај зборовите „context", „<context>" или „контекст" во одговорот — студентот не знае што е тоа и само ќе се збуни. Наместо тоа, повикај се на документот по неговиот наслов.
 
 4. ЈАЗИК — одговарај на јазикот на ПРАШАЊЕТО
-4.1 Одговарај на ИСТИОТ јазик на кој е поставено прашањето, не на јазикот на документите.
-4.2 Ако прашањето е на англиски → целиот одговор на англиски (вклучувајќи „Step N:", листите и задебелените вредности).
-4.3 Ако прашањето е на македонски → целиот одговор на македонски.
-4.4 Документите се на македонски, но тоа НЕ смее да го одреди јазикот на одговорот. Прашањето го одредува јазикот, секогаш.
-
+4.1 Прво препознај го јазикот на прашањето, па одговори на ИСТИОТ јазик, не на јазикот на документите.
+4.2 Ако прашањето е на МАКЕДОНСКИ — без разлика дали е со кирилица или со латиница/транслитерирано (пр. „kolku cini upis") — целиот одговор напиши го на МАКЕДОНСКИ со КИРИЛИЦА.
+4.3 Ако прашањето е на друг јазик, одговори на ИСТИОТ тој јазик со неговото писмо: англиски→англиски, турски→турски, германски→германски, и така за секој јазик.
+4.4 Документите се на македонски, но тоа НЕ смее да го одреди јазикот на одговорот. Прашањето секогаш го одредува јазикот на одговорот.
 5. ФОРМАТ — прилагоди го на видот на прашањето
 Не секој одговор треба листа. Прво процени што прашал студентот, па избери:
 
@@ -81,21 +80,21 @@ SYSTEM_PROMPT = """Ти си AskUGD — интелигентен асистен�
     5.4.5 НЕ наведувај извор, документ или „Извор:" на крајот — дај само одговор.
 """
 
+_LANG_DIRECTIVE = "\n\n[ЈАЗИК НА ОДГОВОРОТ: Прво препознај го јазикот на прашањето." \
+"Ако прашањето е на македонски (кирилица или латиница, пример: kolku cini upis), напиши го целиот одговор на македонски со кирилица." \
+"Инаку одговори на истиот јазик како прашањето, со неговото писмо (англиски на англиски, турски на турски, германски на германски)." \
+"Документите се на македонски, но тоа не го менува јазикот на одговорот.]"
+
 @lru_cache(maxsize=1)   #go kesira rezlutatot, so maxsize=1 se presmetuva ednas,potoa sekoe povikuvanje go vraka istiot objekt. Ovo e korisno bidejki openai e skapo pri povikuvanje na sekoe prasanje
 def get_llm_client() -> OpenAI:
     if not settings.llm_api_key:   #dokolku klucot ne e pronajden vo settings
         raise RuntimeError("LLM_API_KEY не е поставен во .env") # se dava poraka za nastanatata greska
     return OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url,timeout=60.0) # se sozdava klient, so base_url e za menuvanje na provajderot: openai, groq - za da moze da se menuvat bez da se menuva strukturata na celiot kod
  
-def _build_context(parchinja: list[dict]) -> str:   # se zema xml 
-    delovi = [] # se gradi <doc> blokot
-    for dok_br, parche in enumerate(parchinja, 1):  # se pominuva niz nite parcinja so reden broj, enumeration od 1 se pocnuva do doc id = 1, 2, 3
-        podatoci = parche.get("payload", {}) # se zema payload: ako e prazen recnik 
-        oznaka = podatoci.get("title", podatoci.get("source", "?")) # naslov za prikaz, title, ako nema source nema nema ? 
-        clen = f" | {podatoci['article_no']}" if podatoci.get("article_no") else ""
-        tekst = parche.get("text", "")[:3500].replace("<", "&lt;").replace(">", "&gt;")
-        delovi.append(f'<doc id="{dok_br}" source="{oznaka}{clen}">\n{tekst}\n</doc>')
-    return "<context>\n" + "\n".join(delovi) + "\n</context>"
+def _build_context(prasanje: str, parcinja:list[dict]) -> str:  # se gradi kontekstot za LLM, se spoi sekoj izvor i tekst vo eden string
+    poraki:list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]  # se dodava sistemskiot prompt
+    poraki.append({"role": "user", "content": f"Прашање на студентот: {prasanje}{_LANG_DIRECTIVE}"})  # se dodava prasanje
+    return poraki
 
 # se gradi porakata za LLM sistem istorija i tekovno prasanje
 def _build_messages(prashanje: str, parchinja: list[dict], istorija: list[dict]) -> list[dict]:
