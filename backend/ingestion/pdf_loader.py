@@ -80,7 +80,7 @@ def load_pdf_bytes(podatoci: bytes, name: str = "<web-pdf>") -> str:    #vcituva
     try:
         with fitz.open(stream=podatoci, filetype="pdf") as dokument: # stream = podatoci se otvara preku bajtite vo memorijata so filetype se kazuva kade e pdf
             return _extract(dokument, name)
-    except PdfError:
+    except PdfError:    #pri pojava na greska se frla istata greska
         raise
     except Exception as greshka:
         raise PdfError(f"Не може да се парсира '{name}': {greshka}") from greshka
