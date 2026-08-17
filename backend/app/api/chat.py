@@ -3,6 +3,7 @@
 from __future__ import annotations
 import json
 import logging
+import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.config import settings
@@ -20,6 +21,22 @@ NO_INFO_MSG = ("Немам информација за тоа во достап�
                "Обрати се до Студентска служба на УГД за помош.")
 # greska kon klientot, ne sodrze nikakvo izvestuvanje za toa od koj tip na gresja e
 GENERIC_ERROR = "Настана грешка при обработката. Обиди се повторно."
+
+# Fiksen pozdrav za razgovorni prasanja (zdravo, koj si ti, fala...) — se vraka BEZ pretrazuvanje
+# i BEZ LLM: konzistenten e sekojpat i ne troshi tokeni od dnevnata kvota.
+POZDRAV_MSG = "Здраво, како може да ви помогнам?"
+_POZDRAV_RE = re.compile(
+    r"(здраво|здр|ало|еј|хеј|поздрав|добар\s+ден|добро\s+утро|добра\s+вечер|"
+    r"кој\s+си|ко\s+си|што\s+си|што\s+(можеш|правиш|нудиш)|со\s+што\s+(можеш|помагаш)|"
+    r"фала|благодар|zdravo|koj\s+si|sto\s+mozes|fala|hi|hello|hey|"
+    r"who\s+are\s+you|what\s+can\s+you|thanks|thank\s+you)",
+    re.IGNORECASE,
+)
+def _e_pozdrav(prashanje: str) -> bool:  # kratko razgovorno prasanje -> fiksen pozdrav
+    tekst = prashanje.strip().lower()
+    if len(tekst.split()) > 5:   # podolgi prasanja odat niz normalniot tek
+        return False
+    return bool(_POZDRAV_RE.search(tekst))
 
 # funkcija koja ja vraka ip adresata na klientot od koe ide baranjeto
 def _client_ip(request: Request) -> str:
@@ -76,6 +93,9 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
 
     session_id = req.session_id or history.new_session_id()
     prethodni_poraki = history.get(session_id)
+
+    if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez LLM)
+        return ChatResponse(answer=POZDRAV_MSG, sources=[], session_id=session_id)
 
     kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
     if kluc_kes is not None:
@@ -134,6 +154,13 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
         return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"
 
     def stream():
+        if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez pretrazuvanje/LLM)
+            yield event({"type": "sources", "sources": [], "session_id": session_id})
+            yield event({"type": "token", "token": POZDRAV_MSG})
+            history.append(session_id, "user", prashanje)
+            history.append(session_id, "assistant", POZDRAV_MSG)
+            yield event({"type": "done"})
+            return
         if kluc_kes is not None:
             kesirano = answer_cache.get(kluc_kes)
             if kesirano is not None:
