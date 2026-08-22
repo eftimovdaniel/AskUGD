@@ -19,3 +19,108 @@ web_sources:
     max_depth: 1
     max_pages: 30
     fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/kontakti/#contact-us
+    title: Контакт - УГД
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/za-ugd/prijavete-korupcija/
+    title: Пријави корупција
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/za-ugd/informacii-javen-karakter/
+    title: Информации од јавен карактер
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/za-ugd/zastita-na-licni-podatoci/
+    title: Заштита на лични податоци
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/studiranje/studentska-organizacija/
+    title: Студентска организација
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/za-ugd/studentski-pravobranitel/
+    title: Студентски правобранител
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/za-ugd/javni-nabavki/
+    title: Јавни набавки
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://www.ugd.edu.mk/wp-content/uploads/2024/08/plan-za-rodova-ednakvost-na-ugd.pdf
+    title : Родова еднаквост
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+  
+  - url: https://www.ugd.edu.mk/c/soopstenija/konkursi/
+    title: Соопштенија - конкурси
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://cmus.ugd.edu.mk/index.html
+    title: International Relations Office at UGD 
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://cmus.ugd.edu.mk/ugd-studenti.html
+    title: International Relations Office at UGD - studenti
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://cmus.ugd.edu.mk/ugd-vraboteni.html
+    title: International Relations Office at UGD - vrabotuvanje
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://cmus.ugd.edu.mk/incoming-students.html
+    title: International Relations Office at UGD - incoming students
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://cmus.ugd.edu.mk/incoming-staff.html
+    title: International Relations Office at UGD - incoming staff
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
+
+  - url: https://cmus.ugd.edu.mk/contact.html
+    title: International Relations Office at UGD - contact
+    crawl: true
+    max_depth: 1
+    max_pages: 30
+    fetch_pdfs: true
