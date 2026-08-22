@@ -63,6 +63,30 @@ _IZVLEK_RE = re.compile(
 def _e_obid_izvlekuvanje(prashanje: str) -> bool:
     return bool(_IZVLEK_RE.search(prashanje or ""))
 
+# Prasanja za avtorstvo („koj te napravi", „koj stoi zad tebe") -> fiksen odgovor BEZ LLM.
+# Inaku praviloto „odgovaraj samo od kontekst" go odbiva (imenata ne se vo dokumentite).
+_AVTOR_RE = re.compile(
+    r"(?i)("
+    r"кој\s+(те|ве)\s+(направи|изработи|создаде|создал|напиша|напра[вј]и|(ис)?програмира|кодира|разви|дизајнира|осмисли|конструира)|"
+    r"кој\s+стои\s+(зад|позади)\s+(тебе|те|вас)|"
+    r"кој\s+(е\s+)?(твој|твојот|вашиот|ваш)\s+(основач|автор|творец|креатор)|"
+    r"koj\s+te\s+(napravi|izraboti|sozdade|(is)?programira|kodira)|"
+    r"koj\s+stoi\s+(zad|pozadi)\s+(tebe|te)|"
+    r"who\s+(made|created|built|developed|designed|programmed|coded)\s+you|"
+    r"who\s+is\s+behind\s+you|who\s+is\s+your\s+(creator|founder|developer|author|maker)"
+    r")"
+)
+_AVTOR = {
+    "mk": ("Ме изработи Даниел Ефтимов (индекс 102785), студент на Факултетот за информатика при УГД. "
+           "За безбедноста се грижи Ирена Ефтимова (индекс 102708)."),
+    "en": ("I was built by Daniel Eftimov (index 102785), a student at the Faculty of Computer Science at UGD. "
+           "Security is handled by Irena Eftimova (index 102708)."),
+}
+def _e_avtorstvo(prashanje: str) -> bool:
+    return bool(_AVTOR_RE.search(prashanje or ""))
+def _avtor_msg(prashanje: str) -> str:
+    return _AVTOR.get(_detektiraj_jazik(prashanje), _AVTOR["mk"])
+
 # funkcija koja ja vraka ip adresata na klientot od koe ide baranjeto
 def _client_ip(request: Request) -> str:
     direkten = request.client.host if request.client else "unknown"
@@ -119,8 +143,12 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
     session_id = req.session_id or history.new_session_id()
     prethodni_poraki = history.get(session_id)
 
-    if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez LLM)
+    if _e_obid_izvlekuvanje(req.question):   # obid za izvlekuvanje na promptot -> tvrdo odbivanje
         return ChatResponse(answer=_odbieno_msg(prashanje), sources=[], session_id=session_id)
+    if _e_avtorstvo(req.question):   # „koj te napravi" -> fiksen odgovor za avtorstvo
+        return ChatResponse(answer=_avtor_msg(prashanje), sources=[], session_id=session_id)
+    if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez LLM)
+        return ChatResponse(answer=POZDRAV_MSG, sources=[], session_id=session_id)
     kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
     if kluc_kes is not None:
         kesirano = answer_cache.get(kluc_kes)
@@ -178,14 +206,24 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
         return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"
 
     def stream():
-        if _e_obid_izvlekuvanje(prashanje):
+        if _e_obid_izvlekuvanje(req.question):   # RAW prasanje — pred sanitize da gi neutralizira zborovite
+            odbivanje = _odbieno_msg(prashanje)
             yield event({"type": "sources", "sources": [], "session_id": session_id})
-            yield event({"type": "token", "token":_odbieno_msg(prashanje)})
+            yield event({"type": "token", "token": odbivanje})
             history.append(session_id, "user", prashanje)
-            history.append(session_id, "assistant", _odbieno_msg(prashanje))
-            yield event ({"type": "done"})
+            history.append(session_id, "assistant", odbivanje)
+            yield event({"type": "done"})
             return
-        
+
+        if _e_avtorstvo(req.question):   # „koj te napravi" -> fiksen odgovor (bez LLM)
+            avtor = _avtor_msg(prashanje)
+            yield event({"type": "sources", "sources": [], "session_id": session_id})
+            yield event({"type": "token", "token": avtor})
+            history.append(session_id, "user", prashanje)
+            history.append(session_id, "assistant", avtor)
+            yield event({"type": "done"})
+            return
+
         if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez pretrazuvanje/LLM)
             yield event({"type": "sources", "sources": [], "session_id": session_id})
             yield event({"type": "token", "token": POZDRAV_MSG})
