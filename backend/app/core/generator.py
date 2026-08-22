@@ -100,13 +100,15 @@ SYSTEM_PROMPT = """Ти си AskUGD — интелигентен асистен�
 # jazichna direktiva: sekogas se dodava na krajot od prasanjeto. Modelot sam go prepoznava jazikot
 # na prasanjeto (makedonski so kirilica ili latinica -> odgovor na kirilica; drug jazik -> ist jazik),
 # a kontekstot na makedonski NE go menuva jazikot na odgovorot
+
 _LANG_DIRECTIVE = (
-    "\n\n[ЈАЗИК НА ОДГОВОРОТ: Прво препознај го јазикот на прашањето. "
-    "Ако прашањето е на македонски (кирилица или латиница, пример: kolku cini upis), "
-    "напиши го целиот одговор на македонски со кирилица. "
-    "Инаку одговори на истиот јазик како прашањето, со неговото писмо "
-    "(англиски на англиски, турски на турски, германски на германски). "
-    "Документите се на македонски, но тоа не го менува јазикот на одговорот.]"
+    "\n\n[ЈАЗИК НА ОДГОВОРОТ: Одговори на ИСТИОТ јазик на кој е напишано прашањето погоре. "
+    "Ако прашањето е на англиски, целиот одговор МОРА да биде на англиски. "
+    "Ако е на турски, одговори на турски; ако е на германски, одговори на германски. "
+    "Само ако прашањето е на македонски (кирилица или латиница, пример: kolku cini upis), "
+    "одговори на македонски со кирилица. "
+    "НЕ одговарај на македонски ако прашањето не е на македонски. "
+    "Документите се на македонски, но тоа не смее да го промени јазикот на твојот одговор.]"
 )
 
 @lru_cache(maxsize=1)   #go kesira rezlutatot, so maxsize=1 se presmetuva ednas,potoa sekoe povikuvanje go vraka istiot objekt. Ovo e korisno bidejki openai e skapo pri povikuvanje na sekoe prasanje
