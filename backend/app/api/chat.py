@@ -37,6 +37,23 @@ def _e_pozdrav(prashanje: str) -> bool:  # kratko razgovorno prasanje -> fiksen 
     if len(tekst.split()) > 5:   # podolgi prasanja odat niz normalniot tek
         return False
     return bool(_POZDRAV_RE.search(tekst))
+# Detekcija na obid da se izvlece sistemskiot prompt / instrukcii -> tvrdo odbivanje (bez LLM).
+ODBIENO_MSG = ("Не можам да ги споделам внатрешните инструкции или начинот на работа на системот. "
+               "Со задоволство ќе ти помогнам со прашање за студирањето на УГД.")
+_IZVLEK_RE = re.compile(
+    r"(?i)("
+    r"system\s*prompt|developer\s+(message|prompt)|initial\s+(instructions?|prompt)|"
+    r"(reveal|show|print|repeat|give|display|output|share|tell)\s+(me\s+)?(your|the)?\s*(system\s*)?(prompt|instructions?|rules?|guidelines?|configuration)|"
+    r"(repeat|print|output|say)\s+(the\s+)?(text|words|everything)\s+above|"
+    r"what\s+(are|were)\s+your\s+(instructions?|rules?|system\s*prompt)|verbatim|"
+    r"системск\w*\s+промпт|"
+    r"(покажи|кажи|издиктирај|повтори|испечати|откриј|сподели|дај)\s+(ми\s+)?(ги\s+)?(твоите|своите)?\s*(инструкции|правила|промпт|упатства|насоки)|"
+    r"(повтори|испечати|кажи)\s+(го\s+)?(текстот|зборовите|сето)\s+(погоре|над)|"
+    r"кои\s+се\s+(твоите|вашите)\s+(инструкции|правила)"
+    r")"
+)
+def _e_obid_izvlekuvanje(prashanje: str) -> bool:
+    return bool(_IZVLEK_RE.search(prashanje or ""))
 
 # funkcija koja ja vraka ip adresata na klientot od koe ide baranjeto
 def _client_ip(request: Request) -> str:
@@ -95,8 +112,7 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
     prethodni_poraki = history.get(session_id)
 
     if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez LLM)
-        return ChatResponse(answer=POZDRAV_MSG, sources=[], session_id=session_id)
-
+        return ChatResponse(answer=ODBIENO_MSG, sources=[], session_id=session_id)
     kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
     if kluc_kes is not None:
         kesirano = answer_cache.get(kluc_kes)
@@ -154,6 +170,14 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
         return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"
 
     def stream():
+        if _e_obid_izvlekuvanje(prashanje):
+            yield event({"type": "sources", "sources": [], "session_id": session_id})
+            yield event({"type:": "token", "token":ODBIENO_MSG})
+            history.append(session_id, "user", prashanje)
+            history.append(session_id, "assistant", ODBIENO_MSG)
+            yield event ({"type": "done"})
+            return
+        
         if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez pretrazuvanje/LLM)
             yield event({"type": "sources", "sources": [], "session_id": session_id})
             yield event({"type": "token", "token": POZDRAV_MSG})
