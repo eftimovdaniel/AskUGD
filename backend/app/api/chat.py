@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.config import settings
 from app.core.cache import answer_cache, normalize_key
-from app.core.generator import generate, stream_generate
+from app.core.generator import _detektiraj_jazik, generate, stream_generate
 from app.core.history import history
 from app.core.retriever import RetrievalUnavailable, extract_sources, retrieve
 from app.models.schemas import ChatRequest, ChatResponse, Source
@@ -38,9 +38,15 @@ def _e_pozdrav(prashanje: str) -> bool:  # kratko razgovorno prasanje -> fiksen 
         return False
     return bool(_POZDRAV_RE.search(tekst))
 # Detekcija na obid da se izvlece sistemskiot prompt / instrukcii -> tvrdo odbivanje (bez LLM).
-ODBIENO_MSG = ("Не можам да ги споделам внатрешните инструкции или начинот на работа на системот. "
-               "Прашај ме за студирањето на УГД. "
-               "(I can't share the system's internal instructions. Feel free to ask me about studying at UGD.)")
+_ODBIENO = {
+    "mk": "Не можам да ги споделам внатрешните инструкции или начинот на работа на системот. Прашај ме за студирањето на УГД.",
+    "en": "I can't share the system's internal instructions or how it works. Feel free to ask me about studying at UGD.",
+    "tr": "Sistemin dahili talimatlarını ya da nasıl çalıştığını paylaşamam. UGD'de okumakla ilgili istediğinizi sorabilirsiniz.",
+    "de": "Ich kann die internen Anweisungen oder die Funktionsweise des Systems nicht teilen. Frag mich gern etwas zum Studium an der UGD.",
+    "sq": "Nuk mund t'i ndaj udhëzimet e brendshme apo mënyrën si funksionon sistemi. Më pyet lirisht për studimet në UGD.",
+}
+def _odbieno_msg(prashanje: str) -> str:   # poraka za odbivanje na jazikot na prasanjeto (fallback: en)
+    return _ODBIENO.get(_detektiraj_jazik(prashanje), _ODBIENO["en"])
 
 _IZVLEK_RE = re.compile(
     r"(?i)("
@@ -114,7 +120,7 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
     prethodni_poraki = history.get(session_id)
 
     if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez LLM)
-        return ChatResponse(answer=ODBIENO_MSG, sources=[], session_id=session_id)
+        return ChatResponse(answer=_odbieno_msg(prashanje), sources=[], session_id=session_id)
     kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
     if kluc_kes is not None:
         kesirano = answer_cache.get(kluc_kes)
@@ -174,9 +180,9 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
     def stream():
         if _e_obid_izvlekuvanje(prashanje):
             yield event({"type": "sources", "sources": [], "session_id": session_id})
-            yield event({"type": "token", "token":ODBIENO_MSG})
+            yield event({"type": "token", "token":_odbieno_msg(prashanje)})
             history.append(session_id, "user", prashanje)
-            history.append(session_id, "assistant", ODBIENO_MSG)
+            history.append(session_id, "assistant", _odbieno_msg(prashanje))
             yield event ({"type": "done"})
             return
         

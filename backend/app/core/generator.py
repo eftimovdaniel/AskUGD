@@ -147,7 +147,7 @@ def _build_context(parchinja: list[dict]) -> str:   # se zema xml
         podatoci = parche.get("payload", {}) # se zema payload: ako e prazen recnik 
         oznaka = podatoci.get("title", podatoci.get("source", "?")) # naslov za prikaz, title, ako nema source nema nema ? 
         clen = f" | {podatoci['article_no']}" if podatoci.get("article_no") else ""
-        tekst = parche.get("text", "")[:2200].replace("<", "&lt;").replace(">", "&gt;")
+        tekst = parche.get("text", "")[:3500].replace("<", "&lt;").replace(">", "&gt;")
         delovi.append(f'<doc id="{dok_br}" source="{oznaka}{clen}">\n{tekst}\n</doc>')
     return "<context>\n" + "\n".join(delovi) + "\n</context>"
 
