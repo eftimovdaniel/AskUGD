@@ -172,7 +172,7 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
     def stream():
         if _e_obid_izvlekuvanje(prashanje):
             yield event({"type": "sources", "sources": [], "session_id": session_id})
-            yield event({"type:": "token", "token":ODBIENO_MSG})
+            yield event({"type": "token", "token":ODBIENO_MSG})
             history.append(session_id, "user", prashanje)
             history.append(session_id, "assistant", ODBIENO_MSG)
             yield event ({"type": "done"})
