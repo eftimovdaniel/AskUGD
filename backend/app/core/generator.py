@@ -101,15 +101,39 @@ SYSTEM_PROMPT = """Ти си AskUGD — интелигентен асистен�
 # na prasanjeto (makedonski so kirilica ili latinica -> odgovor na kirilica; drug jazik -> ist jazik),
 # a kontekstot na makedonski NE go menuva jazikot na odgovorot
 
-_LANG_DIRECTIVE = (
-    "\n\n[ЈАЗИК НА ОДГОВОРОТ: Одговори на ИСТИОТ јазик на кој е напишано прашањето погоре. "
-    "Ако прашањето е на англиски, целиот одговор МОРА да биде на англиски. "
-    "Ако е на турски, одговори на турски; ако е на германски, одговори на германски. "
-    "Само ако прашањето е на македонски (кирилица или латиница, пример: kolku cini upis), "
-    "одговори на македонски со кирилица. "
-    "НЕ одговарај на македонски ако прашањето не е на македонски. "
-    "Документите се на македонски, но тоа не смее да го промени јазикот на твојот одговор.]"
-)
+# Detekcija na jazikot na prasanjeto -> silna direktiva modelot da odgovori na TOJ jazik.
+# Kirilica -> makedonski; inaku langdetect (deterministicki). Ako langdetect go nema -> model sam odlucuva.
+_CYR = re.compile(r"[Ѐ-ӿ]")
+_LANG_NAMES = {  # jasno ne-makedonski jazici -> forsiran odgovor na toj jazik
+    "en": "English", "tr": "Turkish", "de": "German", "sq": "Albanian",
+    "fr": "French", "es": "Spanish", "it": "Italian",
+}
+
+def _detektiraj_jazik(prashanje: str) -> str:
+    tekst = (prashanje or "").strip()
+    if _CYR.search(tekst):
+        return "mk"                       # kirilica -> makedonski
+    try:
+        from langdetect import detect, DetectorFactory
+        DetectorFactory.seed = 0          # ist vlez -> ist rezultat (deterministicki)
+        return detect(tekst)
+    except Exception:
+        return "und"                      # nepoznato -> model sam odlucuva
+
+def _lang_directive(prashanje: str) -> str:
+    kod = _detektiraj_jazik(prashanje)
+    if kod == "mk":
+        return "\n\n[ЈАЗИК: Одговори на МАКЕДОНСКИ, со кирилица. Целиот одговор мора да е на македонски.]"
+    if kod == "en":
+        return ("\n\n[LANGUAGE: Write your ENTIRE answer in ENGLISH. Do not use Macedonian. "
+                "The documents are in Macedonian, but your answer must be in English.]")
+    ime = _LANG_NAMES.get(kod)
+    if ime:
+        return (f"\n\n[LANGUAGE: The question is in {ime}. Write your ENTIRE answer in {ime}, not in Macedonian. "
+                f"The documents are in Macedonian, but your answer must be in the language of the question.]")
+    # nepoznato / transliterirano -> makedonski so latinica odi na kirilica, inaku jazikot na prasanjeto
+    return ("\n\n[ЈАЗИК: Одговори на ИСТИОТ јазик како прашањето. Ако прашањето е македонски напишан со латиница, "
+            "одговори на македонски со кирилица.]")
 
 @lru_cache(maxsize=1)   #go kesira rezlutatot, so maxsize=1 se presmetuva ednas,potoa sekoe povikuvanje go vraka istiot objekt. Ovo e korisno bidejki openai e skapo pri povikuvanje na sekoe prasanje
 def get_llm_client() -> OpenAI:
@@ -133,7 +157,7 @@ def _build_messages(prashanje: str, parchinja: list[dict], istorija: list[dict])
     poraki.extend(istorija) # se dodava prethodnite poraki od sesijata, za da se razbere follow up
     poraki.append({"role": "user",  # kon prasanjeto se dodava _LANG_DIRECTIVE za jazikot na odgovorot
                    "content": f"{_build_context(parchinja)}\n\n"
-                              f"Прашање на студентот: {prashanje}{_LANG_DIRECTIVE}"})
+                              f"Прашање на студентот: {prashanje}{_lang_directive(prashanje)}"})
     return poraki
 
 # gpt-oss se "reasoning" modeli: "low" troshi mnogu pomalku tokeni (podolgo traat dnevnite limiti) i e pobrz.
