@@ -39,7 +39,9 @@ def _e_pozdrav(prashanje: str) -> bool:  # kratko razgovorno prasanje -> fiksen 
     return bool(_POZDRAV_RE.search(tekst))
 # Detekcija na obid da se izvlece sistemskiot prompt / instrukcii -> tvrdo odbivanje (bez LLM).
 ODBIENO_MSG = ("Не можам да ги споделам внатрешните инструкции или начинот на работа на системот. "
-               "Со задоволство ќе ти помогнам со прашање за студирањето на УГД.")
+               "Прашај ме за студирањето на УГД. "
+               "(I can't share the system's internal instructions. Feel free to ask me about studying at UGD.)")
+
 _IZVLEK_RE = re.compile(
     r"(?i)("
     r"system\s*prompt|developer\s+(message|prompt)|initial\s+(instructions?|prompt)|"
