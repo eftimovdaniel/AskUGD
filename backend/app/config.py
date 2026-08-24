@@ -28,9 +28,12 @@ class Settings(BaseSettings):
     #Retrieval
     candidate_k: int = 20
     top_k: int = 5
-    rerank_threshold: float = 0.1
+    rerank_threshold: float = 0.15
     max_retrieval_iterations: int = 3
     use_translation: bool = True
+    use_query_rewrite: bool = True
+    max_context_chars: int = 12000
+    history_message_chars: int = 1200
 
     # --- API безбедност ---
     api_access_key: str | None = None   

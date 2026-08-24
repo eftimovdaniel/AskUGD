@@ -8,11 +8,15 @@ import time
 from collections import OrderedDict
 from typing import Any
 from app.config import settings
+from app.core.language import is_mk_latin, transliterate_mk
 
 _WS_RE = re.compile(r"\s+") #regez za dve ili poveke praznini
 
 def normalize_key(question: str) -> str:    #kriranje kluc na prasanjeto
-    return _WS_RE.sub(" ", question).strip().lower()  #poveke praznini, se trgaat vo edno, trganje na kraevite i mali bukvi
+    kluc = _WS_RE.sub(" ", question).strip().lower()
+    if is_mk_latin(kluc):
+        kluc = transliterate_mk(kluc)
+    return kluc
 
 class AnswerCache:  #kesh za gotovite odgovori, onie koa veke gi ima nekoj postavveno
     def __init__(self, max_size: int, ttl_seconds: float) -> None:  #konstrukutor 

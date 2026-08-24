@@ -24,7 +24,20 @@ GENERIC_ERROR = "Настана грешка при обработката. Об
 
 # Fiksen pozdrav za razgovorni prasanja (zdravo, koj si ti, fala...) — se vraka BEZ pretrazuvanje
 # i BEZ LLM: konzistenten e sekojpat i ne troshi tokeni od dnevnata kvota.
-POZDRAV_MSG = "Здраво, како може да ви помогнам?"
+_POZDRAV = {
+    "mk": "Здраво! Јас сум AskUGD — прашај ме за упис, рокови, цени, кредити или административни постапки.",
+    "en": "Hi! I'm AskUGD — ask me about enrollment, deadlines, fees, credits, or admin procedures at UGD.",
+    "tr": "Merhaba! Ben AskUGD — kayıt, tarihler, ücretler veya idari işlemler hakkında sorabilirsin.",
+    "de": "Hallo! Ich bin AskUGD — frag mich zu Einschreibung, Fristen, Gebühren oder Verwaltung an der UGD.",
+    "sq": "Përshëndetje! Unë jam AskUGD — pyet për regjistrim, afate, tarifa, kredite ose procedura administrative.",
+}
+_EN_GREET_RE = re.compile(
+    r"(?i)\b(hi|hello|hey|thanks|thank you|who are you|what can you)\b"
+)
+def _pozdrav_msg(prashanje: str) -> str:
+    if _EN_GREET_RE.search(prashanje or ""):
+        return _POZDRAV["en"]
+    return _POZDRAV.get(_detektiraj_jazik(prashanje), _POZDRAV["mk"])
 _POZDRAV_RE = re.compile(
     r"(здраво|здр|ало|еј|хеј|поздрав|добар\s+ден|добро\s+утро|добра\s+вечер|"
     r"кој\s+си|ко\s+си|што\s+си|што\s+(можеш|правиш|нудиш)|со\s+што\s+(можеш|помагаш)|"
@@ -125,7 +138,7 @@ def _prepare(req: ChatRequest) -> tuple[str, str, list[dict], list[dict]]:
     session_id = req.session_id or history.new_session_id() # se zema session_id od razgovorot, dokolku nema se kreira nov, se koriste za da moze da se koriste follow up na prasanjeto
     prethodni_poraki = history.get(session_id)  # se zema poslednata poraka za taa sesija
     try:    # se pravi obid da se najde relevanto parce 
-        parchinja = retrieve(prashanje) # tekot na podatoci: prevod = hybrid search = rerank = najrelevantno parce
+        parchinja = retrieve(prashanje, prethodni_poraki) # tekot: rewrite = prevod = hybrid search = rerank
     except RetrievalUnavailable:    # dokolku bazata e down 
         logger.exception("Retrieval недостапен")    # se pecati porakata vo terminal, logovite
         raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None # na korisnikot mu se dava 503 = servisot e primremeno nedostapen,
@@ -148,7 +161,7 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
     if _e_avtorstvo(req.question):   # „koj te napravi" -> fiksen odgovor za avtorstvo
         return ChatResponse(answer=_avtor_msg(prashanje), sources=[], session_id=session_id)
     if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez LLM)
-        return ChatResponse(answer=POZDRAV_MSG, sources=[], session_id=session_id)
+        return ChatResponse(answer=_pozdrav_msg(prashanje), sources=[], session_id=session_id)
     kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
     if kluc_kes is not None:
         kesirano = answer_cache.get(kluc_kes)
@@ -163,7 +176,7 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
             )
 
     try:
-        parchinja = retrieve(prashanje)
+        parchinja = retrieve(prashanje, prethodni_poraki)
     except RetrievalUnavailable:
         logger.exception("Retrieval недостапен")
         raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None
@@ -225,10 +238,11 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
             return
 
         if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez pretrazuvanje/LLM)
+            pozdrav = _pozdrav_msg(prashanje)
             yield event({"type": "sources", "sources": [], "session_id": session_id})
-            yield event({"type": "token", "token": POZDRAV_MSG})
+            yield event({"type": "token", "token": pozdrav})
             history.append(session_id, "user", prashanje)
-            history.append(session_id, "assistant", POZDRAV_MSG)
+            history.append(session_id, "assistant", pozdrav)
             yield event({"type": "done"})
             return
         if kluc_kes is not None:
@@ -243,7 +257,7 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
                 return
 
         try:
-            parchinja = retrieve(prashanje)
+            parchinja = retrieve(prashanje, prethodni_poraki)
         except RetrievalUnavailable:
             logger.exception("Retrieval недостапен")
             yield event({"type": "error", "message": GENERIC_ERROR})

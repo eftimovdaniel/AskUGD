@@ -7,6 +7,7 @@ import logging
 from app.config import settings
 from app.core import rerank as reranker
 from app.core import vectorstore
+from app.core.rewrite import rewrite_query
 from app.core.translate import translate_query
 
 logger = logging.getLogger(__name__)
@@ -24,9 +25,10 @@ def _query_variants(prashanje: str) -> list[str]: #se pravi poveke verzii na pra
         varijanti.append(prevod)   # se dodava prevedenata verzija
     return varijanti[: settings.max_retrieval_iterations]   # se ograniciva brojot na varijanti, se garantira deka nema da se preveduva beskonecno mnogu
 
-def retrieve(prashanje: str) -> list[dict]: # dava najrelevantno prace za prasanjeto
+def retrieve(prashanje: str, istorija: list[dict] | None = None) -> list[dict]: # dava najrelevantno prace za prasanjeto
+    baranje = rewrite_query(prashanje, istorija or [])
     videni: dict[str, dict] = {}   #recnik: id na parceto se zema parceto, za da se otstrant duplikati 
-    varijanti = _query_variants(prashanje)  #se zemaat serziite na prasanjeto
+    varijanti = _query_variants(baranje)  #se zemaat serziite na prasanjeto
     neuspesi = 0   #brojot na neuspesni prebaruvanja
 
     for varijanta_br, varijanta in enumerate(varijanti, 1): # pominuva nis sekoja verzija 
@@ -49,7 +51,7 @@ def retrieve(prashanje: str) -> list[dict]: # dava najrelevantno prace za prasan
     kandidati = kandidati[: settings.candidate_k]   # se zemaat samo top kandidatite, ovie odat na rerank
     if not kandidati:   # dokolku nema nitu eden kandidat, ama bazata rabote, samo nema sovpaganje
         return []   # se dava prazno, nema informacija
-    oceni = reranker.rerank(prashanje, [kand["text"] for kand in kandidati]) # rerenak dava na cross encoderot samo tekovnite 20 kandidati , vraka ocenka od 0 do 1 ili none ako rerank ne e dostapen
+    oceni = reranker.rerank(baranje, [kand["text"] for kand in kandidati]) # rerenak dava na cross encoderot samo tekovnite 20 kandidati , vraka ocenka od 0 do 1 ili none ako rerank ne e dostapen
     if oceni is not None: #dokolki rerenk raboti (ne e none)
         for kandidat, ocena in zip(kandidati, oceni, strict=True):  # spojuvame go sekoj kandidat so negovata ocenka, string = Ture ako dolzinite ne se isti dava greska 
             kandidat["rerank_score"] = ocena    # se zapisuva ocenkata vo kandidat 

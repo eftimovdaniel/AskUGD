@@ -1,12 +1,9 @@
 #LLM povikot: sistemski prompt (pravilata), XML izolacija na kontekstot, detekcija na jazik, i generacija na odgovor (cel i token-po-token)
 from __future__ import annotations
-import re
 from functools import lru_cache
 from openai import OpenAI
 from app.config import settings
-
-# regex za kirilica — za detekcija na jazikot na prasanjeto
-_CYRILLIC_RE = re.compile(r"[Ѐ-ӿ]")
+from app.core.language import detect_language
 
 # definiranje na system prompt kade e navedeno kako treba ai agentot da se odnesuva i kako da dava odgovori na korisnikot
 SYSTEM_PROMPT = """Ти си AskUGD — интелигентен асистент за студентите на Универзитетот „Гоце Делчев" – Штип.
@@ -102,23 +99,14 @@ SYSTEM_PROMPT = """Ти си AskUGD — интелигентен асистен�
 # a kontekstot na makedonski NE go menuva jazikot na odgovorot
 
 # Detekcija na jazikot na prasanjeto -> silna direktiva modelot da odgovori na TOJ jazik.
-# Kirilica -> makedonski; inaku langdetect (deterministicki). Ako langdetect go nema -> model sam odlucuva.
-_CYR = re.compile(r"[Ѐ-ӿ]")
 _LANG_NAMES = {  # jasno ne-makedonski jazici -> forsiran odgovor na toj jazik
     "en": "English", "tr": "Turkish", "de": "German", "sq": "Albanian",
     "fr": "French", "es": "Spanish", "it": "Italian",
 }
 
+
 def _detektiraj_jazik(prashanje: str) -> str:
-    tekst = (prashanje or "").strip()
-    if _CYR.search(tekst):
-        return "mk"                       # kirilica -> makedonski
-    try:
-        from langdetect import detect, DetectorFactory
-        DetectorFactory.seed = 0          # ist vlez -> ist rezultat (deterministicki)
-        return detect(tekst)
-    except Exception:
-        return "und"                      # nepoznato -> model sam odlucuva
+    return detect_language(prashanje)
 
 def _lang_directive(prashanje: str) -> str:
     kod = _detektiraj_jazik(prashanje)
@@ -141,24 +129,48 @@ def get_llm_client() -> OpenAI:
         raise RuntimeError("LLM_API_KEY не е поставен во .env") # se dava poraka za nastanatata greska
     return OpenAI(api_key=settings.llm_api_key, base_url=settings.llm_base_url,timeout=60.0) # se sozdava klient, so base_url e za menuvanje na provajderot: openai, groq - za da moze da se menuvat bez da se menuva strukturata na celiot kod
 
-def _build_context(parchinja: list[dict]) -> str:   # se zema xml 
-    delovi = [] # se gradi <doc> blokot
-    for dok_br, parche in enumerate(parchinja, 1):  # se pominuva niz nite parcinja so reden broj, enumeration od 1 se pocnuva do doc id = 1, 2, 3
-        podatoci = parche.get("payload", {}) # se zema payload: ako e prazen recnik 
-        oznaka = podatoci.get("title", podatoci.get("source", "?")) # naslov za prikaz, title, ako nema source nema nema ? 
+def _build_context(parchinja: list[dict]) -> str:   # se zema xml
+    delovi: list[str] = []
+    potrosheno = 0
+    budzet = settings.max_context_chars
+    for dok_br, parche in enumerate(parchinja, 1):
+        podatoci = parche.get("payload", {})
+        oznaka = podatoci.get("title", podatoci.get("source", "?"))
         clen = f" | {podatoci['article_no']}" if podatoci.get("article_no") else ""
-        tekst = parche.get("text", "")[:2200].replace("<", "&lt;").replace(">", "&gt;")
+        tekst = parche.get("text", "").replace("<", "&lt;").replace(">", "&gt;")
+        if potrosheno + len(tekst) > budzet:
+            ostanuva = budzet - potrosheno
+            if ostanuva < 200:
+                break
+            tekst = tekst[:ostanuva]
         delovi.append(f'<doc id="{dok_br}" source="{oznaka}{clen}">\n{tekst}\n</doc>')
+        potrosheno += len(tekst)
     return "<context>\n" + "\n".join(delovi) + "\n</context>"
 
-# se gradi porakata za LLM sistem istorija i tekovno prasanje
+
+def _skrati_istorija(istorija: list[dict]) -> list[dict]:
+    skrateni: list[dict] = []
+    limit = settings.history_message_chars
+    for poraka in istorija:
+        tekst = poraka.get("content") or ""
+        if len(tekst) > limit:
+            tekst = tekst[:limit] + "…"
+        skrateni.append({"role": poraka.get("role", "user"), "content": tekst})
+    return skrateni
+
+
 def _build_messages(prashanje: str, parchinja: list[dict], istorija: list[dict]) -> list[dict]:
-    poraki: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}] # prvata poraka e sistemskiot promet, za da razbere follow up 
-    poraki.extend(istorija) # se dodava prethodnite poraki od sesijata, za da se razbere follow up
-    poraki.append({"role": "user",  # kon prasanjeto se dodava _LANG_DIRECTIVE za jazikot na odgovorot
-                   "content": f"{_build_context(parchinja)}\n\n"
-                              f"Прашање на студентот: {prashanje}{_lang_directive(prashanje)}"})
-    return poraki
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        *_skrati_istorija(istorija),
+        {
+            "role": "user",
+            "content": (
+                f"{_build_context(parchinja)}\n\n"
+                f"Прашање на студентот: {prashanje}{_lang_directive(prashanje)}"
+            ),
+        },
+    ]
 
 # gpt-oss se "reasoning" modeli: "low" troshi mnogu pomalku tokeni (podolgo traat dnevnite limiti) i e pobrz.
 # Za drugi modeli ne se prakja nisto, za da ne frli greska.

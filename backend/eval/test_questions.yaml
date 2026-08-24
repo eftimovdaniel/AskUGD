@@ -39,3 +39,13 @@
 
 - question: "Кога почнува колоквиумската недела?"
   expected_source: "kalendar"
+
+# Истите прашања со mk-латиница — транслитерација без LLM.
+- question: "Kako da se zapisham na semestar?"
+  expected_source: "Upis_na_semestar"
+
+- question: "Kolku cini upis na semestar?"
+  expected_source: "Tarifnik"
+
+- question: "Sto mi treba za zaverka na semestar?"
+  expected_source: "Zaverka_na_semestar"
