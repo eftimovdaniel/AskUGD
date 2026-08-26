@@ -77,12 +77,12 @@ def ensure_collection() -> None:  # sozdavanje kolekcija dokolku ne postoi, ne e
     client.create_payload_index(ime, field_name="source", field_schema=models.PayloadSchemaType.KEYWORD)    # indeks za source za brzo delete by source
     logger.info("Креирана колекција '%s' (hybrid=%s)", ime, settings.use_hybrid)
 
-def ready() -> bool:    # proverka dali bazata e dostapna 
-    try:    
-        get_client().get_collection(settings.qdrant_collection) #obid da ja zememe kolekcijata 
-        return True # ako e zemana dava true 
-    except Exception: 
-        return False    #dokolku ne e vraka false 
+def ready() -> bool:    # proverka dali Qdrant odgovara (kolekcijata moze uste da e prazna)
+    try:
+        get_client().get_collections()
+        return True
+    except Exception:
+        return False 
 
 def upsert_chunks(texts: list[str], metas: list[dict], ids: list[str], batch_size: int = 32) -> None:   #embeding i zapisuvanje so batch_size od 32
     if not (len(texts) == len(metas) == len(ids)): #site tri listi mora da se so ista dolzina

@@ -1,10 +1,13 @@
+import { sanitizeHttpUrl } from "./security";
+
 export type EmbedConfig = {
   assetsBase: string;
   apiUrl: string;
 };
 
 let assetsBase = "";
-let apiUrl = "http://127.0.0.1:8000";
+const DEFAULT_API_URL = "http://127.0.0.1:8000";
+let apiUrl = DEFAULT_API_URL;
 
 function normalizeBase(base: string): string {
   if (!base) return "/";
@@ -32,13 +35,13 @@ function resolveFromScript(): EmbedConfig | null {
 
   return {
     assetsBase: normalizeBase(script.dataset.assetsBase || derivedBase),
-    apiUrl: script.dataset.apiUrl?.trim() || apiUrl,
+    apiUrl: sanitizeHttpUrl(script.dataset.apiUrl || "", apiUrl),
   };
 }
 
 export function configureEmbed(config: EmbedConfig): void {
   assetsBase = normalizeBase(config.assetsBase);
-  apiUrl = config.apiUrl.replace(/\/$/, "");
+  apiUrl = sanitizeHttpUrl(config.apiUrl, DEFAULT_API_URL);
 }
 
 export function resolveEmbedConfig(): EmbedConfig {

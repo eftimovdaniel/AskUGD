@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class ChatRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
-    session_id: str | None = Field(default=None, max_length=64)
+    session_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]{8,64}$")
 
 
 class Source(BaseModel):

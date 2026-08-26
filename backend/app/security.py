@@ -80,7 +80,17 @@ def verify_api_key(provided: str | None) -> bool:   # proveruva api klucevi,
         return True # dozvoli 
     if not provided:    # dokolki e konfiguriran no klientot ne pratil kluc 
         return False     # se odbiva
-    return hmac.compare_digest(provided, settings.api_access_key)   # sporedba 
+    return hmac.compare_digest(provided, settings.api_access_key)   # sporedba
+
+
+def chat_allowed(origin: str | None, api_key: str | None) -> bool:
+    """Vidzet: CORS origin. Admin/curl: X-API-Key. Klucot ne odi vo JavaScript."""
+    dozvoleni = settings.cors_origin_list
+    if dozvoleni:
+        if (origin or "").strip() in dozvoleni:
+            return True
+        return bool(settings.api_access_key) and verify_api_key(api_key)
+    return verify_api_key(api_key) 
 
 def sanitize_question(raw: str) -> tuple[str, bool]:    #go cisti prasanjeto, vraka cisto prasanje, dali ima detektirano injection...
     prashanje = _CONTROL_RE.sub("", raw or "")  # se trgaat kontrolnite znaci

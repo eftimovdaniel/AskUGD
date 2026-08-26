@@ -3,10 +3,10 @@
 from __future__ import annotations
 import json
 import logging
-import secrets
 import threading
 import time
 from app.config import settings
+from app.core.sessions import mint_session_id
 
 logger = logging.getLogger(__name__)
 _MAX_SESSIONS = 5000 # limit, max 5000 sesii vo memorija, zastita od iscrapuvanje na ram vo pikot na baranjeto
@@ -28,7 +28,7 @@ class HistoryStore: # in memory sklad za istorija
 
     @staticmethod  # staticki metod, ne treba self
     def new_session_id() -> str:    # definira nov unikaten session_id 
-        return secrets.token_urlsafe(16)    # urlsafe so 16 slucajni bajti, kodnirani url bezbedno
+        return mint_session_id()
 
     def _purge(self) -> None: # cisti isteceni sesii
         sega = time.monotonic() # tekovnoto vreme
@@ -71,7 +71,7 @@ class RedisHistoryStore:
 
     @staticmethod
     def new_session_id() -> str:    # generira session_id 
-        return secrets.token_urlsafe(16)
+        return mint_session_id()
 
     def get(self, session_id: str) -> list[dict]:  # vraka istorija od Redis
         try: # obidi se redis moze da padne 

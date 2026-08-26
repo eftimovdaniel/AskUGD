@@ -2,7 +2,7 @@ import { assetUrl, configureEmbed, resolveEmbedConfig } from "./config";
 import { getWidgetMarkup } from "./widgetMarkup";
 
 const STYLESHEET_ID = "ugd-ai-agent-styles";
-const WIDGET_STYLE_VERSION = "11";
+const WIDGET_STYLE_VERSION = "13";
 
 function ensureStylesheet(): void {
   if (document.getElementById(STYLESHEET_ID)) return;

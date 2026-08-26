@@ -3,6 +3,7 @@ import asyncio
 import logging
 import uuid
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.chat import router as chat_router
@@ -24,14 +25,33 @@ def _warmup() -> None:
     except Exception as greshka:
         logger.warning("Warmup не успеа: %s", greshka)
 
+def _qdrant_remote_unprotected() -> bool:
+    host = (urlparse(settings.qdrant_url).hostname or "").lower()
+    lokalni = {"localhost", "127.0.0.1", "::1", "qdrant"}
+    return host not in lokalni and not settings.qdrant_api_key
+
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
-    if not settings.api_access_key: #proverka dali api key e postaven ili ne
-        logger.warning("API_ACCESS_KEY не е поставен — /chat е ЈАВНО достапен!")    #vo log vraka poraka za greska
-    if not settings.cors_origin_list:   #ako cors ne postoi
-        logger.warning("CORS_ORIGINS не е поставен — browser барања нема да работат.")  #predupreduvanje vo log
+    if settings.cors_origin_list:
+        logger.info("Chat е отворен за CORS_ORIGINS (без клуч во виџетот). /metrics бара API_ACCESS_KEY.")
+        if not settings.api_access_key:
+            logger.warning("API_ACCESS_KEY не е поставен — /metrics е затворен.")
+    else:
+        logger.warning("CORS_ORIGINS не е поставен — browser барања нема да работат.")
+        if not settings.api_access_key:
+            logger.warning("API_ACCESS_KEY не е поставен — /chat е јавно достапен.")
+    if not (settings.session_secret or settings.api_access_key):
+        logger.warning("SESSION_SECRET не е поставен — session_id не е потпишан.")
+    if not settings.redis_url:
+        logger.warning("REDIS_URL не е поставен — за 2+ workers историјата и rate limit не се делат.")
+    if not settings.trust_proxy_headers:
+        logger.info("TRUST_PROXY_HEADERS=false. Зад load balancer стави true и TRUSTED_PROXY_HOPS.")
+    if not settings.llm_max_calls_per_hour and not settings.llm_max_calls_per_day:
+        logger.info("LLM буџет исклучен. За облак: LLM_MAX_CALLS_PER_HOUR и LLM_MAX_CALLS_PER_DAY.")
+    if _qdrant_remote_unprotected():
+        logger.warning("Qdrant URL не е локален и QDRANT_API_KEY недостасува.")
     await asyncio.to_thread(_warmup)
-    yield # orabotka na baranjata, kodot pred nego e star a posle e za gasnenje
+    yield
 
 app = FastAPI(title="AskUGD", version="1.0.0",  #sozdavanje na fastapi aplikacija so naslov i verzija, objasnuvanje i lifespan
               description="RAG асистент за студенти на УГД", lifespan=_lifespan)

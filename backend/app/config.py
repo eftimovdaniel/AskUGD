@@ -36,13 +36,16 @@ class Settings(BaseSettings):
     history_message_chars: int = 1200
 
     # --- API безбедност ---
-    api_access_key: str | None = None   
-    cors_origins: str = ""              
-    rate_limit: int = 20            
-    rate_limit_ip: int = 300            
+    api_access_key: str | None = None
+    session_secret: str = ""
+    cors_origins: str = ""
+    rate_limit: int = 20
+    rate_limit_ip: int = 300
     trust_proxy_headers: bool = False
     trusted_proxy_hops: int = 1
     max_question_chars: int = 1000
+    llm_max_calls_per_hour: int = 0
+    llm_max_calls_per_day: int = 0
 
     #Историја на разговор
     history_ttl_seconds: int = 3600

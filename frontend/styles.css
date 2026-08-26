@@ -1906,6 +1906,44 @@ right: 0;
   color: #1f2937;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
+.ugd-ai-msg-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.ugd-ai-sources {
+  padding: 0 4px 2px 2px;
+  color: #6b7280;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.ugd-ai-sources-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+  color: #6b7280;
+}
+.ugd-ai-sources ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ugd-ai-sources li {
+  margin: 0 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ugd-ai-sources a {
+  color: #b91c1c;
+  text-decoration: none;
+}
+.ugd-ai-sources a:hover,
+.ugd-ai-sources a:focus-visible {
+  text-decoration: underline;
+}
 .ugd-ai-typing {
   display: inline-flex;
   align-items: center;
@@ -2234,6 +2272,153 @@ right: 0;
 
   .ugd-ai-widget .ugd-ai-footer-form {
     padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+.ugd-ai-suggestions {
+  --ugd-chip-gap: 6px;
+  --ugd-chip-shift: 0px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 10px 0;
+  background: var(--ugd-asst-body);
+}
+.ugd-ai-suggestions[hidden] {
+  display: none !important;
+}
+.ugd-ai-suggestions-window {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* Прашањата бледнат на рабовите за да не се сечат нагло при вртењето. */
+  -webkit-mask: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+  mask: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+}
+/* Двете поместувања се одвоени: анимацијата тера налево, стрелката враќа надесно. */
+.ugd-ai-suggestions-shift {
+  transform: translateX(var(--ugd-chip-shift));
+}
+.ugd-ai-suggestions-shift.is-stepping {
+  transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.ugd-ai-suggestions-track {
+  display: flex;
+  width: max-content;
+  gap: var(--ugd-chip-gap);
+  animation: ugd-ai-chip-marquee 64s linear infinite;
+}
+.ugd-ai-suggestions:hover .ugd-ai-suggestions-track,
+.ugd-ai-suggestions:focus-within .ugd-ai-suggestions-track {
+  animation-play-state: paused;
+}
+.ugd-ai-suggestions-group {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--ugd-chip-gap);
+}
+/*
+ * Патеката мора да е точно една група + едно растојание. Лентата содржи три групи,
+ * па -100%/3 дава група + 2/3 растојание; преостанатата третина се додава рачно.
+ * Намерно нема JS-променлива овде — Safari не ја преисметува анимацијата кога
+ * custom property во клучен кадар ќе се смени, па лентата би застанала.
+ */
+@keyframes ugd-ai-chip-marquee {
+  to {
+    transform: translateX(calc(-100% / 3 - var(--ugd-chip-gap) / 3));
+  }
+}
+.ugd-ai-widget button.ugd-ai-chip-nav {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  flex: 0 0 auto;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #6b7280 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  line-height: 0 !important;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s;
+}
+.ugd-ai-widget button.ugd-ai-chip-nav:hover {
+  background: var(--ugd-asst-red) !important;
+  background-color: var(--ugd-asst-red) !important;
+  border-color: var(--ugd-asst-red) !important;
+  color: #fff !important;
+}
+.ugd-ai-widget button.ugd-ai-chip-nav:active {
+  transform: scale(0.92);
+}
+.ugd-ai-widget button.ugd-ai-chip-nav:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--ugd-asst-red-rgb), 0.35);
+}
+.ugd-ai-widget button.ugd-ai-chip {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box !important;
+  flex: 0 0 auto;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 5px 11px !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 9999px !important;
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #4b5563 !important;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.4 !important;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s;
+}
+.ugd-ai-widget button.ugd-ai-chip:hover {
+  background: var(--ugd-asst-red) !important;
+  background-color: var(--ugd-asst-red) !important;
+  border-color: var(--ugd-asst-red) !important;
+  color: #fff !important;
+}
+.ugd-ai-widget button.ugd-ai-chip:active {
+  transform: scale(0.97);
+}
+.ugd-ai-widget button.ugd-ai-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--ugd-asst-red-rgb), 0.35);
+}
+/* Автоматското вртење запира; стрелката и рачното лизгање остануваат. */
+@media (prefers-reduced-motion: reduce) {
+  .ugd-ai-suggestions-window {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ugd-ai-suggestions-window::-webkit-scrollbar {
+    display: none;
+  }
+  .ugd-ai-suggestions-track {
+    animation: none;
+  }
+  .ugd-ai-suggestions-shift.is-stepping {
+    transition: none;
   }
 }
 /* ============================================================================ ИЗГЛЕД: УГД AI асистент — КРАЈ на CSS за агентот ============================================================================ */

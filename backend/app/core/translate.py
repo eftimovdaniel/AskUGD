@@ -1,6 +1,6 @@
 #preveduvanje na prasanjeot na makedonski za da moze da se pobrzo i polesno prebaruvanje
 #Dokumentacijata e na makedonski. Anglisko prasanje → LLM prevod. Mk-латиница („kolku cini upis“)
-#se pretvora vo кирилица bez LLM. Kirilica se ostava kako sto e.
+#se pretvora vo кирилица bez LLM. Kirilica se ostava kako sto e
 from __future__ import annotations
 import logging
 from dataclasses import dataclass
@@ -10,16 +10,13 @@ from app.core.language import ima_kirilica, is_mk_latin, transliterate_mk
 
 logger = logging.getLogger(__name__)
 
-
 def needs_translation(question: str) -> bool:
     return not ima_kirilica(question) and not is_mk_latin(question)
-
 
 @dataclass
 class TranslationResult:    # rezlutat od obidot za prevod
     translated: str | None #prevod ili none
     attempted: bool # dali ima obid za prevod ili ne
-
 
 def translate_query(question: str) -> TranslationResult:
     if ima_kirilica(question):

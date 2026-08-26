@@ -1,106 +1,24 @@
-#glaven endpoint, go povrazuva celiot rag tek, postavuvanje na prasanje - retrieval - generiranje odgovor
-
+# HTTP sloj: guard, JSON i SSE. Delovniot tek e vo app.core.pipeline.
 from __future__ import annotations
 import json
 import logging
-import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.config import settings
-from app.core.cache import answer_cache, normalize_key
-from app.core.generator import _detektiraj_jazik, generate, stream_generate
-from app.core.history import history
-from app.core.retriever import RetrievalUnavailable, extract_sources, retrieve
+from app.core.budget import BUDGET_MSG, LlmBudgetExceeded
+from app.core.generator import generate, stream_generate
+from app.core.pipeline import EmptyQuestion, Ready, commit, plan, start_turn
+from app.core.retriever import RetrievalUnavailable
 from app.models.schemas import ChatRequest, ChatResponse, Source
-from app.security import (ip_rate_limiter, sanitize_question, session_rate_limiter, verify_api_key)
+from app.security import chat_allowed, ip_rate_limiter, session_rate_limiter
 
-logger = logging.getLogger(__name__)  #kreiranje na logger, za da moze da vidam vo log od kade doaga odgovorort
+ACCESS_DENIED = "Пристапот не е дозволен."
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
-# Poraka koja se prikazuva koga LLM ne moze da najde soodveten odgovor
-NO_INFO_MSG = ("Немам информација за тоа во достапната документација. " 
-               "Обрати се до Студентска служба на УГД за помош.")
-# greska kon klientot, ne sodrze nikakvo izvestuvanje za toa od koj tip na gresja e
 GENERIC_ERROR = "Настана грешка при обработката. Обиди се повторно."
 
-# Fiksen pozdrav za razgovorni prasanja (zdravo, koj si ti, fala...) — se vraka BEZ pretrazuvanje
-# i BEZ LLM: konzistenten e sekojpat i ne troshi tokeni od dnevnata kvota.
-_POZDRAV = {
-    "mk": "Здраво! Јас сум AskUGD — прашај ме за упис, рокови, цени, кредити или административни постапки.",
-    "en": "Hi! I'm AskUGD — ask me about enrollment, deadlines, fees, credits, or admin procedures at UGD.",
-    "tr": "Merhaba! Ben AskUGD — kayıt, tarihler, ücretler veya idari işlemler hakkında sorabilirsin.",
-    "de": "Hallo! Ich bin AskUGD — frag mich zu Einschreibung, Fristen, Gebühren oder Verwaltung an der UGD.",
-    "sq": "Përshëndetje! Unë jam AskUGD — pyet për regjistrim, afate, tarifa, kredite ose procedura administrative.",
-}
-_EN_GREET_RE = re.compile(
-    r"(?i)\b(hi|hello|hey|thanks|thank you|who are you|what can you)\b"
-)
-def _pozdrav_msg(prashanje: str) -> str:
-    if _EN_GREET_RE.search(prashanje or ""):
-        return _POZDRAV["en"]
-    return _POZDRAV.get(_detektiraj_jazik(prashanje), _POZDRAV["mk"])
-_POZDRAV_RE = re.compile(
-    r"(здраво|здр|ало|еј|хеј|поздрав|добар\s+ден|добро\s+утро|добра\s+вечер|"
-    r"кој\s+си|ко\s+си|што\s+си|што\s+(можеш|правиш|нудиш)|со\s+што\s+(можеш|помагаш)|"
-    r"фала|благодар|zdravo|koj\s+si|sto\s+mozes|fala|hi|hello|hey|"
-    r"who\s+are\s+you|what\s+can\s+you|thanks|thank\s+you)",
-    re.IGNORECASE,
-)
-def _e_pozdrav(prashanje: str) -> bool:  # kratko razgovorno prasanje -> fiksen pozdrav
-    tekst = prashanje.strip().lower()
-    if len(tekst.split()) > 5:   # podolgi prasanja odat niz normalniot tek
-        return False
-    return bool(_POZDRAV_RE.search(tekst))
-# Detekcija na obid da se izvlece sistemskiot prompt / instrukcii -> tvrdo odbivanje (bez LLM).
-_ODBIENO = {
-    "mk": "Не можам да ги споделам внатрешните инструкции или начинот на работа на системот. Прашај ме за студирањето на УГД.",
-    "en": "I can't share the system's internal instructions or how it works. Feel free to ask me about studying at UGD.",
-    "tr": "Sistemin dahili talimatlarını ya da nasıl çalıştığını paylaşamam. UGD'de okumakla ilgili istediğinizi sorabilirsiniz.",
-    "de": "Ich kann die internen Anweisungen oder die Funktionsweise des Systems nicht teilen. Frag mich gern etwas zum Studium an der UGD.",
-    "sq": "Nuk mund t'i ndaj udhëzimet e brendshme apo mënyrën si funksionon sistemi. Më pyet lirisht për studimet në UGD.",
-}
-def _odbieno_msg(prashanje: str) -> str:   # poraka za odbivanje na jazikot na prasanjeto (fallback: en)
-    return _ODBIENO.get(_detektiraj_jazik(prashanje), _ODBIENO["en"])
 
-_IZVLEK_RE = re.compile(
-    r"(?i)("
-    r"system\s*prompt|developer\s+(message|prompt)|initial\s+(instructions?|prompt)|"
-    r"(reveal|show|print|repeat|give|display|output|share|tell)\s+(me\s+)?(your|the)?\s*(system\s*)?(prompt|instructions?|rules?|guidelines?|configuration)|"
-    r"(repeat|print|output|say)\s+(the\s+)?(text|words|everything)\s+above|"
-    r"what\s+(are|were)\s+your\s+(instructions?|rules?|system\s*prompt)|verbatim|"
-    r"системск\w*\s+промпт|"
-    r"(покажи|кажи|издиктирај|повтори|испечати|откриј|сподели|дај)\s+(ми\s+)?(ги\s+)?(твоите|своите)?\s*(инструкции|правила|промпт|упатства|насоки)|"
-    r"(повтори|испечати|кажи)\s+(го\s+)?(текстот|зборовите|сето)\s+(погоре|над)|"
-    r"кои\s+се\s+(твоите|вашите)\s+(инструкции|правила)"
-    r")"
-)
-def _e_obid_izvlekuvanje(prashanje: str) -> bool:
-    return bool(_IZVLEK_RE.search(prashanje or ""))
-
-# Prasanja za avtorstvo („koj te napravi", „koj stoi zad tebe") -> fiksen odgovor BEZ LLM.
-# Inaku praviloto „odgovaraj samo od kontekst" go odbiva (imenata ne se vo dokumentite).
-_AVTOR_RE = re.compile(
-    r"(?i)("
-    r"кој\s+(те|ве)\s+(направи|изработи|создаде|создал|напиша|напра[вј]и|(ис)?програмира|кодира|разви|дизајнира|осмисли|конструира)|"
-    r"кој\s+стои\s+(зад|позади)\s+(тебе|те|вас)|"
-    r"кој\s+(е\s+)?(твој|твојот|вашиот|ваш)\s+(основач|автор|творец|креатор)|"
-    r"koj\s+te\s+(napravi|izraboti|sozdade|(is)?programira|kodira)|"
-    r"koj\s+stoi\s+(zad|pozadi)\s+(tebe|te)|"
-    r"who\s+(made|created|built|developed|designed|programmed|coded)\s+you|"
-    r"who\s+is\s+behind\s+you|who\s+is\s+your\s+(creator|founder|developer|author|maker)"
-    r")"
-)
-_AVTOR = {
-    "mk": ("Ме изработи Даниел Ефтимов (индекс 102785), студент на Факултетот за информатика при УГД. "
-           "За безбедноста се грижи Ирена Ефтимова (индекс 102708)."),
-    "en": ("I was built by Daniel Eftimov (index 102785), a student at the Faculty of Computer Science at UGD. "
-           "Security is handled by Irena Eftimova (index 102708)."),
-}
-def _e_avtorstvo(prashanje: str) -> bool:
-    return bool(_AVTOR_RE.search(prashanje or ""))
-def _avtor_msg(prashanje: str) -> str:
-    return _AVTOR.get(_detektiraj_jazik(prashanje), _AVTOR["mk"])
-
-# funkcija koja ja vraka ip adresata na klientot od koe ide baranjeto
 def _client_ip(request: Request) -> str:
     direkten = request.client.host if request.client else "unknown"
     if not settings.trust_proxy_headers:
@@ -116,172 +34,109 @@ def _client_ip(request: Request) -> str:
         return lanec[-(indeks + 1)]
     return lanec[0]
 
-#bezbednosna porata se izvrasuva pred sekoj povik
+
 def guard(req: ChatRequest, request: Request) -> None:
-    if not verify_api_key(request.headers.get("x-api-key")): # proverka na API key od headerot, verify_api_key vraka True i ako klicot voopsto ne e konfiguriran 
-        raise HTTPException(status_code=401, detail="Невалиден API клуч")
-    ip_adresa = _client_ip(request) #se zima ip adresata za ip limitot
-    if not ip_rate_limiter.allow(f"ip:{ip_adresa}"): #se proveruva ip limitot, so ip: {ip_adresa} se odvojuva klucit id sesiskite vo istiot sklad
+    if not chat_allowed(request.headers.get("origin"), request.headers.get("x-api-key")):
+        raise HTTPException(status_code=403, detail=ACCESS_DENIED)
+    ip_adresa = _client_ip(request)
+    if not ip_rate_limiter.allow(f"ip:{ip_adresa}"):
         raise HTTPException(status_code=429, detail="Премногу барања — обиди се за минута")
-    kluc_sesija = req.session_id or ip_adresa   # kluc za sesiskiot limit: session_id ako postoi inaku paga nazad na ip
+    kluc_sesija = req.session_id or ip_adresa
     if not session_rate_limiter.allow(f"s:{kluc_sesija}"):
         raise HTTPException(status_code=429, detail="Премногу барања — обиди се за минута")
 
-# zadnicki dva endpoints, za da ne se povtoruva istiot kod dvapati
-def _prepare(req: ChatRequest) -> tuple[str, str, list[dict], list[dict]]:
-    prashanje, oznaceno = sanitize_question(req.question) #se ciste prasanjeto od nepotrebni znaci i simboli za da se dobie cisto prasanje za obrabotka
-    if oznaceno: # dokolku se detektira obid za Injection, ne dava nisto, samo vo logovite se pecate deka ima obid
-        logger.warning("Injection обид детектиран во прашање")
-    if not prashanje:  # dokolku po cistenje na prasanjeto ostane prazno, samo na primer nekoj znak
-        raise HTTPException(status_code=422, detail="Празно прашање") #se pecate error greska
 
-    session_id = req.session_id or history.new_session_id() # se zema session_id od razgovorot, dokolku nema se kreira nov, se koriste za da moze da se koriste follow up na prasanjeto
-    prethodni_poraki = history.get(session_id)  # se zema poslednata poraka za taa sesija
-    try:    # se pravi obid da se najde relevanto parce 
-        parchinja = retrieve(prashanje, prethodni_poraki) # tekot: rewrite = prevod = hybrid search = rerank
-    except RetrievalUnavailable:    # dokolku bazata e down 
-        logger.exception("Retrieval недостапен")    # se pecati porakata vo terminal, logovite
-        raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None # na korisnikot mu se dava 503 = servisot e primremeno nedostapen,
-    return prashanje, session_id, prethodni_poraki, parchinja # se vrakaat site vrednosti
+def _sse(podatoci: dict) -> str:
+    return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"
 
-# 
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
-    prashanje, oznaceno = sanitize_question(req.question)
-    if oznaceno:
-        logger.warning("Injection обид детектиран во прашање")
-    if not prashanje:
-        raise HTTPException(status_code=422, detail="Празно прашање")
-
-    session_id = req.session_id or history.new_session_id()
-    prethodni_poraki = history.get(session_id)
-
-    if _e_obid_izvlekuvanje(req.question):   # obid za izvlekuvanje na promptot -> tvrdo odbivanje
-        return ChatResponse(answer=_odbieno_msg(prashanje), sources=[], session_id=session_id)
-    if _e_avtorstvo(req.question):   # „koj te napravi" -> fiksen odgovor za avtorstvo
-        return ChatResponse(answer=_avtor_msg(prashanje), sources=[], session_id=session_id)
-    if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez LLM)
-        return ChatResponse(answer=_pozdrav_msg(prashanje), sources=[], session_id=session_id)
-    kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
-    if kluc_kes is not None:
-        kesirano = answer_cache.get(kluc_kes)
-        if kesirano is not None:
-            odgovor, izvori = kesirano
-            history.append(session_id, "user", prashanje)
-            history.append(session_id, "assistant", odgovor)
-            return ChatResponse(
-                answer=odgovor,
-                sources=[Source(**izvor) for izvor in izvori],
-                session_id=session_id,
-            )
-
     try:
-        parchinja = retrieve(prashanje, prethodni_poraki)
+        turn = start_turn(req.question, req.session_id)
+        planiran = plan(turn)
+    except EmptyQuestion as greshka:
+        raise HTTPException(status_code=422, detail=str(greshka)) from None
+    except LlmBudgetExceeded:
+        raise HTTPException(status_code=503, detail=BUDGET_MSG) from None
     except RetrievalUnavailable:
         logger.exception("Retrieval недостапен")
         raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None
 
-    if not parchinja:
-        odgovor = NO_INFO_MSG
-    else:
-        try:
-            odgovor = generate(prashanje, parchinja, prethodni_poraki)
-        except Exception:
-            logger.exception("Генерацијата падна")
-            raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None
+    if isinstance(planiran, Ready):
+        gotov = commit(turn, planiran.answer, planiran.sources, cacheable=planiran.cacheable)
+        return ChatResponse(
+            answer=gotov.answer,
+            sources=[Source(**izvor) for izvor in gotov.sources],
+            session_id=turn.session_id,
+        )
 
-    izvori = extract_sources(parchinja)
-    if kluc_kes is not None and parchinja:
-        answer_cache.set(kluc_kes, (odgovor, izvori))
+    try:
+        odgovor = generate(turn.prashanje, planiran.parchinja, turn.istorija)
+    except LlmBudgetExceeded:
+        raise HTTPException(status_code=503, detail=BUDGET_MSG) from None
+    except Exception:
+        logger.exception("Генерацијата падна")
+        raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None
 
-    history.append(session_id, "user", prashanje)
-    history.append(session_id, "assistant", odgovor)
+    gotov = commit(turn, odgovor, planiran.sources, cacheable=True)
     return ChatResponse(
-        answer=odgovor,
-        sources=[Source(**izvor) for izvor in izvori],
-        session_id=session_id,
+        answer=gotov.answer,
+        sources=[Source(**izvor) for izvor in gotov.sources],
+        session_id=turn.session_id,
     )
 
 
 @router.post("/chat/stream")
 def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
-    prashanje, oznaceno = sanitize_question(req.question)
-    if oznaceno:
-        logger.warning("Injection обид детектиран во прашање")
-    if not prashanje:
-        raise HTTPException(status_code=422, detail="Празно прашање")
-
-    session_id = req.session_id or history.new_session_id()
-    prethodni_poraki = history.get(session_id)
-    kluc_kes = normalize_key(prashanje) if not prethodni_poraki else None
-
-    def event(podatoci: dict) -> str:
-        return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"
+    try:
+        turn = start_turn(req.question, req.session_id)
+    except EmptyQuestion as greshka:
+        raise HTTPException(status_code=422, detail=str(greshka)) from None
 
     def stream():
-        if _e_obid_izvlekuvanje(req.question):   # RAW prasanje — pred sanitize da gi neutralizira zborovite
-            odbivanje = _odbieno_msg(prashanje)
-            yield event({"type": "sources", "sources": [], "session_id": session_id})
-            yield event({"type": "token", "token": odbivanje})
-            history.append(session_id, "user", prashanje)
-            history.append(session_id, "assistant", odbivanje)
-            yield event({"type": "done"})
-            return
-
-        if _e_avtorstvo(req.question):   # „koj te napravi" -> fiksen odgovor (bez LLM)
-            avtor = _avtor_msg(prashanje)
-            yield event({"type": "sources", "sources": [], "session_id": session_id})
-            yield event({"type": "token", "token": avtor})
-            history.append(session_id, "user", prashanje)
-            history.append(session_id, "assistant", avtor)
-            yield event({"type": "done"})
-            return
-
-        if _e_pozdrav(prashanje):   # razgovorno prasanje -> fiksen pozdrav (bez pretrazuvanje/LLM)
-            pozdrav = _pozdrav_msg(prashanje)
-            yield event({"type": "sources", "sources": [], "session_id": session_id})
-            yield event({"type": "token", "token": pozdrav})
-            history.append(session_id, "user", prashanje)
-            history.append(session_id, "assistant", pozdrav)
-            yield event({"type": "done"})
-            return
-        if kluc_kes is not None:
-            kesirano = answer_cache.get(kluc_kes)
-            if kesirano is not None:
-                odgovor, izvori = kesirano
-                yield event({"type": "sources", "sources": izvori, "session_id": session_id})
-                yield event({"type": "token", "token": odgovor})
-                history.append(session_id, "user", prashanje)
-                history.append(session_id, "assistant", odgovor)
-                yield event({"type": "done"})
-                return
-
         try:
-            parchinja = retrieve(prashanje, prethodni_poraki)
+            planiran = plan(turn)
         except RetrievalUnavailable:
             logger.exception("Retrieval недостапен")
-            yield event({"type": "error", "message": GENERIC_ERROR})
+            yield _sse({"type": "error", "message": GENERIC_ERROR})
             return
-        izvori = extract_sources(parchinja)
-        yield event({"type": "sources", "sources": izvori, "session_id": session_id})
-        delovi_odgovor: list[str] = []
+        except LlmBudgetExceeded:
+            yield _sse({"type": "error", "message": BUDGET_MSG})
+            return
+
+        if isinstance(planiran, Ready):
+            gotov = commit(turn, planiran.answer, planiran.sources, cacheable=planiran.cacheable)
+            yield _sse({
+                "type": "sources",
+                "sources": gotov.sources,
+                "session_id": turn.session_id,
+            })
+            yield _sse({"type": "token", "token": gotov.answer})
+            yield _sse({"type": "done"})
+            return
+
+        yield _sse({"type": "sources", "sources": planiran.sources, "session_id": turn.session_id})
+        delovi: list[str] = []
         try:
-            if not parchinja:
-                delovi_odgovor.append(NO_INFO_MSG)
-                yield event({"type": "token", "token": NO_INFO_MSG})
-            else:
-                for token in stream_generate(prashanje, parchinja, prethodni_poraki):
-                    delovi_odgovor.append(token)
-                    yield event({"type": "token", "token": token})
+            for token in stream_generate(turn.prashanje, planiran.parchinja, turn.istorija):
+                delovi.append(token)
+                yield _sse({"type": "token", "token": token})
+        except LlmBudgetExceeded:
+            yield _sse({"type": "error", "message": BUDGET_MSG})
+            return
         except Exception:
             logger.exception("Streaming генерацијата падна")
-            yield event({"type": "error", "message": GENERIC_ERROR})
+            yield _sse({"type": "error", "message": GENERIC_ERROR})
             return
-        odgovor = "".join(delovi_odgovor)
-        if kluc_kes is not None and parchinja:
-            answer_cache.set(kluc_kes, (odgovor, izvori))
-        history.append(session_id, "user", prashanje)
-        history.append(session_id, "assistant", odgovor)
-        yield event({"type": "done"})
+        gotov = commit(turn, "".join(delovi), planiran.sources, cacheable=True)
+        if gotov.scrubbed:
+            # tokenite vekje zaminale — zameni go prikazot; istorijata e cista
+            yield _sse({"type": "redact", "message": gotov.answer})
+        yield _sse({"type": "done"})
 
-    return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

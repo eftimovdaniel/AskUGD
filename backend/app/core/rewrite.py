@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import re
 from app.config import settings
-from app.core.generator import _llm_extra, get_llm_client
+from app.core.budget import LlmBudgetExceeded, consume_llm
+from app.core.generator import get_llm_client, llm_extra
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ def rewrite_query(prashanje: str, istorija: list[dict]) -> str:
         role = "Студент" if poraka.get("role") == "user" else "Асистент"
         posledni.append(f"{role}: {(poraka.get('content') or '')[:400]}")
     try:
+        consume_llm()
         resp = get_llm_client().chat.completions.create(
             model=settings.llm_model,
             temperature=0.0,
@@ -50,7 +52,7 @@ def rewrite_query(prashanje: str, istorija: list[dict]) -> str:
                     "content": "\n".join(posledni) + f"\nСтудент: {prashanje}",
                 },
             ],
-            **_llm_extra(),
+            **llm_extra(),
         )
         rewritten = (resp.choices[0].message.content or "").strip().translate(_NAVODNICI)
         if rewritten.lower().startswith("прашање"):
@@ -59,6 +61,9 @@ def rewrite_query(prashanje: str, istorija: list[dict]) -> str:
             return prashanje
         logger.info("Query rewrite: %r → %r", prashanje, rewritten)
         return rewritten
+    except LlmBudgetExceeded:
+        logger.warning("Query rewrite прескокнат — LLM буџет")
+        return prashanje
     except Exception as greshka:
         logger.warning("Query rewrite падна: %s", greshka)
         return prashanje

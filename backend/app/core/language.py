@@ -116,3 +116,16 @@ def detect_language(prashanje: str) -> str:
     if kod in _SOUTH_SLAVIC and _MK_TERMS.search(tekst):
         return "mk"
     return kod
+
+
+# Nepoznato ili sosedno-slovensko → MK: vidzetot stoi na makedonski sajt, pa
+# mk-latinicata sto langdetect ja cita kako „hr“/„sl“ ne smee da dobie angliski.
+_KON_MK = _SOUTH_SLAVIC | {"sk", "cs", "ru", "uk", "und"}
+
+
+def pick_lang(prashanje: str, dostapni) -> str:
+    """Jazik za fiksna poraka: tocen kod ako go imame, inaku mk/en spored blizina."""
+    kod = detect_language(prashanje)
+    if kod in dostapni:
+        return kod
+    return "mk" if kod in _KON_MK else "en"
