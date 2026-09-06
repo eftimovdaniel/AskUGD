@@ -56,6 +56,8 @@ _TERMS = {
     "mi": "ми", "ti": "ти", "i": "и", "e": "е", "ne": "не",
 }
 
+# Redosledot e biten — zamenite tecat edna po druga: „dzh“ mora pred „zh“ i „dz“,
+# inaku „dzh“ prvo bi stanalo „dж“ i nikogas ne bi se sklopilo vo „џ“.
 _DIGRAFI = (
     ("dzh", "џ"), ("sh", "ш"), ("ch", "ч"), ("zh", "ж"),
     ("gj", "ѓ"), ("kj", "ќ"), ("dj", "ѓ"), ("lj", "љ"),
@@ -68,6 +70,7 @@ _MK_MAP = str.maketrans({
     "t": "т", "u": "у", "v": "в", "z": "з",
     "č": "ч", "ć": "ќ", "š": "ш", "ž": "ж", "đ": "ѓ",
 })
+# Samo bukvi: brojkite, sifrite i interpunkcijata minuvaat nedopreni niz transliteracijata.
 _WORD_RE = re.compile(r"[A-Za-zČĆŠŽčćšžĐđ]+")
 
 

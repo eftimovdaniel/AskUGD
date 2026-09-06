@@ -16,13 +16,18 @@ def needs_translation(question: str) -> bool:
 @dataclass
 class TranslationResult:    # rezlutat od obidot za prevod
     translated: str | None #prevod ili none
+    # attempted gi razlikuva „nemase potreba“ od „probav i padna“ — retriever-ot
+    # spored toa znae dali da logira problem ili prosto da prodolzi so originalot.
     attempted: bool # dali ima obid za prevod ili ne
 
 def translate_query(question: str) -> TranslationResult:
+    """Prevodot se DODAVA kon originalot vo retrieval, ne go zamenuva — los prevod ne steti."""
     if ima_kirilica(question):
         return TranslationResult(translated=None, attempted=False)
     if is_mk_latin(question):
         prevod = transliterate_mk(question)
+        # Ako transliteracijata ne smenila nisto, dodavanjeto ista niza samo bi ja
+        # udvoila rabotata na prebaruvanjeto bez nov kandidat.
         if prevod and prevod.lower() != question.lower():
             logger.info("Транслитерација: %r → %r", question, prevod)
             return TranslationResult(translated=prevod, attempted=True)
@@ -36,11 +41,12 @@ def translate_query(question: str) -> TranslationResult:
                  "content": "Translate the user's question to Macedonian. Return ONLY the translation, nothing else."},
                 {"role": "user", "content": question},
             ],
-            temperature=0.0,
+            temperature=0.0,     # prevod, ne prepev — sakame ist izlez za ist vlez
             max_tokens=200,
         )
         translated = (resp.choices[0].message.content or "").strip()
         return TranslationResult(translated=translated or None, attempted=True)
     except Exception as error:
+        # Padnat prevod ne go prekinuva prasanjeto: prebaruvanjeto odi so originalot.
         logger.warning("Преводот на прашањето падна (модел=%s): %s", settings.llm_model, error)
         return TranslationResult(translated=None, attempted=True)

@@ -1,5 +1,7 @@
 # Globalen kap na LLM povici (sat / den). 0 = iskluceno.
 # So Redis se deli megju workers; bez Redis e per-process (slabije, no ne unlimited).
+# Rate limit-ot cuva od eden korisnik; ova cuva od site zaedno — bez satniot kap
+# celata dnevna kvota moze da izgori vo prviot spic od ispitna sesija.
 from __future__ import annotations
 import logging
 import threading
@@ -11,7 +13,7 @@ logger = logging.getLogger(__name__)
 BUDGET_MSG = "Сервисот е привремено преоптоварен. Обиди се подоцна."
 
 class LlmBudgetExceeded(Exception):
-    pass
+    """Kvotata e potrosena. chat.py ja pretvora vo 503, pomosnite cekori ja goltaat."""
 
 class InMemoryLlmBudget:
     def __init__(self, hour_limit: int, day_limit: int) -> None:
@@ -26,10 +28,11 @@ class InMemoryLlmBudget:
     def try_consume(self) -> bool:
         if not self.hour_limit and not self.day_limit:
             return True
+        # Klucot e kalendarski cas/den, pa brojacite se resetiraat sami — bez cistenje.
         sega = time.gmtime()
         hour_key = time.strftime("%Y%m%d%H", sega)
         day_key = time.strftime("%Y%m%d", sega)
-        with self._lock:
+        with self._lock:   # uvicorn vrti poveke threads vo ist proces
             if hour_key != self._hour_key:
                 self._hour_key = hour_key
                 self._hour_n = 0
@@ -61,17 +64,21 @@ class RedisLlmBudget:
             hour_key = time.strftime("llm:h:%Y%m%d%H", sega)
             day_key = time.strftime("llm:d:%Y%m%d", sega)
             pipe = self._r.pipeline()
+            # nx=True: TTL se postavuva samo pri prviot povik. Bez nego sekoj nareden
+            # povik go prodolzuva rokot, pa pod postojan soobrakaj klucot nikogas ne isteknuva.
             if self.hour_limit:
                 pipe.incr(hour_key)
-                pipe.expire(hour_key, 3700, nx=True)
+                pipe.expire(hour_key, 3700, nx=True)     # cas + rezerva
             if self.day_limit:
                 pipe.incr(day_key)
-                pipe.expire(day_key, 90000, nx=True)
+                pipe.expire(day_key, 90000, nx=True)     # den + rezerva
             rezultati = pipe.execute()
+            # incr se izvrsi pred proverkata, pa se sporeduva so „>“: povikot broj N
+            # dava brojac N i sè uste minuva, a se odbiva duri N+1.
             indeks = 0
             if self.hour_limit:
                 broj = int(rezultati[indeks])
-                indeks += 2
+                indeks += 2                      # incr + expire po limit
                 if broj > self.hour_limit:
                     return False
             if self.day_limit:
@@ -80,6 +87,8 @@ class RedisLlmBudget:
                     return False
             return True
         except Exception as greshka:
+            # Fail-open kon lokalen brojac: padnat Redis ne smee da go sopre asistentot,
+            # a kapot ostanuva po proces namesto da iscezne sosem.
             logger.warning("Redis LLM буџет недостапен (%s) — fallback на in-memory", greshka)
             return self._fallback.try_consume()
 
@@ -93,5 +102,6 @@ def _make_budget() -> InMemoryLlmBudget | RedisLlmBudget:
 llm_budget = _make_budget()
 
 def consume_llm() -> None:
+    """Povikaj neposredno pred sekoj LLM povik — inaku toj povik ne se broi vo kapot."""
     if not llm_budget.try_consume():
         raise LlmBudgetExceeded(BUDGET_MSG)

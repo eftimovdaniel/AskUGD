@@ -12,6 +12,8 @@ from app.security import sanitize_question
 
 logger = logging.getLogger(__name__)
 
+# Fiksni poraki: koga retrieval ne vratil nisto, nema kontekst pa nema ni LLM povik.
+# Prevodot mora da e podgotven odnapred — inaku bi platile povik samo za „nemam informacija“.
 _NO_INFO = {
     "mk": (
         "Немам информација за тоа во достапната документација. "
@@ -36,18 +38,20 @@ _NO_INFO = {
 }
 
 def no_info_msg(prashanje: str) -> str:
+    """„Nemam informacija“ na jazikot na prasanjeto, so upat kon Studentska sluzba."""
     return _NO_INFO[pick_lang(prashanje, _NO_INFO)]
 
 class EmptyQuestion(ValueError):
-    pass
+    """Prasanjeto ostanalo prazno po sanitize — API-to go pretvora vo 422."""
 
 @dataclass
 class Turn:
-    prashanje: str
-    surovo: str
+    """Sostojba na eden potez. `surovo` se cuva zaradi detekcija na namera i jazik."""
+    prashanje: str          # po sanitize — ova odi vo retrieval, istorija i kes
+    surovo: str             # kako sto go napisal studentot, bez „[отстрането]“
     session_id: str
     istorija: list[dict]
-    kluc_kes: str | None
+    kluc_kes: str | None    # None = ovoj potez ne smee da se kesira
 
 
 @dataclass
@@ -55,7 +59,7 @@ class Ready:
     """Gotov odgovor (namera, kes ili nema dokumentacija)."""
     answer: str
     sources: list[dict]
-    cacheable: bool = False
+    cacheable: bool = False   # False: pozdravot e evtin, a kes-pogodokot vekje e vo kesot
 
 @dataclass
 class NeedGenerate:
@@ -70,13 +74,17 @@ class Committed:
     scrubbed: bool = False
 
 def start_turn(surovo: str, session_id: str | None) -> Turn:
+    """Ocisti go prasanjeto, resi ja sesijata i odluci dali potezot e kesirliv."""
     prashanje, oznaceno = sanitize_question(surovo)
     if oznaceno:
         logger.warning("Injection обид детектиран во прашање")
     if not prashanje:
         raise EmptyQuestion("Празно прашање")
+    # ID-to sekogas doagja od server: klient sto si izmisluva nov go zaobikoluva rate limit.
     sid = resolve_session_id(session_id)
     istorija = history.get(sid)
+    # Kes samo na prv potez. So istorija istoto prasanje znaci razlicno („а за втор циклус?“),
+    # pa spodelen kluc bi vratil tugj odgovor.
     kluc = normalize_key(prashanje) if not istorija else None
     return Turn(
         prashanje=prashanje,
@@ -87,6 +95,8 @@ def start_turn(surovo: str, session_id: str | None) -> Turn:
     )
 
 def plan(turn: Turn) -> Ready | NeedGenerate:
+    """Od najevtino kon najskapo: namera → kes → retrieval. Prviot sto ke odgovori zapira."""
+    # Namera prva: „здраво“ ili obid za izvlekuvanje nemaat sto da baraat vo pravilnicite.
     fiksen = fiksna_namera(turn.surovo, turn.prashanje)
     if fiksen is not None:
         return Ready(answer=fiksen, sources=[])
@@ -97,6 +107,7 @@ def plan(turn: Turn) -> Ready | NeedGenerate:
             return Ready(answer=odgovor, sources=izvori)
     parchinja = retrieve(turn.prashanje, turn.istorija)
     if not parchinja:
+        # Bez kontekst modelot voopsto ne se povikuva — inaku bi odgovoril od opsto znaenje.
         return Ready(answer=no_info_msg(turn.prashanje), sources=[])
     return NeedGenerate(parchinja=parchinja, sources=extract_sources(parchinja))
 
