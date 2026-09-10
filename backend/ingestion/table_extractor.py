@@ -1,4 +1,4 @@
-#nova verzija na vaj fajl
+#nova verzija na vaj fajl, za da moze da se rabote so tabeli
 from __future__ import annotations
 import logging
 import re
@@ -64,8 +64,8 @@ def _spoi_ime(delovi: list[str]) -> str:    #spojuvanje delovi na ime bez povtor
             izlez.append(zbor)  #i go dodava vo rezultatot
     return " ".join(izlez).strip()  #vrati go spoeneto ime
 
-_MAKS_ZNACI_IME_KOLONA = 60 
-_MAKS_ZBOROVI_IME_KOLONA = 8
+_MAKS_ZNACI_IME_KOLONA = 70
+_MAKS_ZBOROVI_IME_KOLONA = 10
 
 def _e_ime_na_kolona(tekst: str) -> bool:  #proverka dali fragmentot moze da bide ime na nekoja kolona
     cist = tekst.strip()    #trganje na prazni mesta
