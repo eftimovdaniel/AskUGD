@@ -46,8 +46,8 @@ def _presmetaj_delovi(redovi: list[str], maks_zborovi: int) -> list[list[str]]: 
             zborovi_red = len(red.split())  #kolku zbora ima ovoj red
             if broj_zborovi + zborovi_red > maks_zborovi and tekoven:   #ako bi go prefrlil limitot i imame sobrano
                 delovi.append(tekoven)  #zatvaranje na tekovnite delovi
-                tekoven, broj_zborovi = [], 0   #pocnuvanje nov ptazen del 
-            tekoven.append(red) #dodavanje vo redot
+                tekoven, broj_zborovi = [], 0   #pocnuvanje nov prazen del 
+            tekoven.append(red) #dodavanje vo redot, za da se zapise kako del
             broj_zborovi += zborovi_red #update na brojot na zborovi
     if tekoven: #dokolku ostane nesto
         delovi.append(tekoven)  #dodavanje na posledniot del
