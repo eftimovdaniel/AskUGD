@@ -1,4 +1,5 @@
-
+# Eden PDF vo Qdrant — za brzo osvezuvanje bez cel run_ingestion.
+# Primer: python -m ingestion.ingest_one "data/pdfs/.../fajl.pdf"
 from __future__ import annotations
 import sys
 from pathlib import Path

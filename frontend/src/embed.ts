@@ -1,3 +1,7 @@
+/**
+ * Vmetnuvanje na vidzetot vo stranicata: CSS, Font Awesome, HTML, „nagore“.
+ * WIDGET_STYLE_VERSION — cache-busting koga se menuva styles.css.
+ */
 import { assetUrl, configureEmbed, resolveEmbedConfig } from "./config";
 import { getWidgetMarkup } from "./widgetMarkup";
 
@@ -42,6 +46,7 @@ function ensureFontAwesome(): void {
   }
 }
 
+/** Kopce „nagore“ kako na ugd.edu.mk — ne e del od chatot. */
 function ensureBackToTop(): void {
   if (document.getElementById("ugd-back-to-top")) return;
 

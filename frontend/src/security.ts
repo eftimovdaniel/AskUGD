@@ -1,5 +1,9 @@
-/** Frontend безбедносни hardening мерки за статичниот UGD клон. */
+/**
+ * Frontend bezbednost za statickiot UGD klon + vidzetot.
+ * escapeHtmlAttr / sanitizeHttpUrl — XSS pri vmetnuvanje vo atributi i data-api-url.
+ */
 
+/** Escape za HTML atributi (na pr. data-api-url vo widgetMarkup). */
 export function escapeHtmlAttr(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -9,6 +13,7 @@ export function escapeHtmlAttr(value: string): string {
     .replace(/>/g, "&gt;");
 }
 
+/** Dozvoli samo http(s); javascript: i drugo → fallback. */
 export function sanitizeHttpUrl(raw: string, fallback: string): string {
   const trimmed = (raw || "").trim();
   if (!trimmed) return fallback;
@@ -35,6 +40,7 @@ function hardenPage(): void {
   hardenBlankLinks();
 }
 
+/** target=_blank bez rel=noopener moze da go zloupotrebi window.opener. */
 function hardenBlankLinks(): void {
   document.querySelectorAll<HTMLAnchorElement>('a[target="_blank"]').forEach((link) => {
     const rel = link.getAttribute("rel") ?? "";

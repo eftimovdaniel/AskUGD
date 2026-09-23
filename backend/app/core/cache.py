@@ -17,6 +17,7 @@ _WS_RE = re.compile(r"\s+")
 
 
 def normalize_key(question: str) -> str:
+    """Ist kluc za „Kolku cini upis“ i „колку чини упис“ — mk-latinica → kirilica."""
     kluc = _WS_RE.sub(" ", question).strip().lower()
     if is_mk_latin(kluc):
         kluc = transliterate_mk(kluc)
@@ -24,6 +25,7 @@ def normalize_key(question: str) -> str:
 
 
 class AnswerCache:
+    """In-memory LRU + TTL. Eden worker; za povekje → RedisAnswerCache."""
     def __init__(self, max_size: int, ttl_seconds: float) -> None:
         self._max = max_size
         self._ttl = ttl_seconds

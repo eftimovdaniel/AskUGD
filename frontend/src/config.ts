@@ -1,3 +1,7 @@
+/**
+ * Embed konfiguracija: od kade se citat styles/assets i koja e API bazata.
+ * Vrednostite doagjaat od <script data-assets-base data-api-url> ili default localhost.
+ */
 import { sanitizeHttpUrl } from "./security";
 
 export type EmbedConfig = {
@@ -14,6 +18,7 @@ function normalizeBase(base: string): string {
   return base.endsWith("/") ? base : `${base}/`;
 }
 
+/** Najdi go custom.js skriptot — currentScript ili posleden so custom.js vo src. */
 function findEmbedScript(): HTMLScriptElement | null {
   if (document.currentScript instanceof HTMLScriptElement) {
     return document.currentScript;
@@ -31,6 +36,7 @@ function resolveFromScript(): EmbedConfig | null {
   if (!script?.src) return null;
 
   const scriptUrl = new URL(script.src, window.location.href);
+  // .../dist/custom.js → .../  kako baza za styles.css i fontovi
   const derivedBase = scriptUrl.href.replace(/dist\/[^/]+$/, "");
 
   return {

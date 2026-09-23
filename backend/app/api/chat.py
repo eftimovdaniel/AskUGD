@@ -1,4 +1,6 @@
-# HTTP sloj: guard, JSON i SSE. Delovniot tek e vo app.core.pipeline.
+# HTTP sloj: guard, JSON (/chat) i SSE (/chat/stream).
+# Delovniot tek (namera → kes → retrieval → generate → scrub) e vo app.core.pipeline —
+# ovde samo se prevoduva vo HTTP statusi i SSE nastani.
 from __future__ import annotations
 import json
 import logging
@@ -16,10 +18,12 @@ ACCESS_DENIED = "Пристапот не е дозволен."
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+# Genericka poraka — bez stack / interne detali kon klientot.
 GENERIC_ERROR = "Настана грешка при обработката. Обиди се повторно."
 
 
 def _client_ip(request: Request) -> str:
+    """IP za rate limit. So TRUST_PROXY_HEADERS=true cita od X-Forwarded-For (odzadi)."""
     direkten = request.client.host if request.client else "unknown"
     if not settings.trust_proxy_headers:
         return direkten
@@ -36,6 +40,7 @@ def _client_ip(request: Request) -> str:
 
 
 def guard(req: ChatRequest, request: Request) -> None:
+    """Porta pred pipeline: CORS/API kluc + rate limit po IP i po sesija."""
     if not chat_allowed(request.headers.get("origin"), request.headers.get("x-api-key")):
         raise HTTPException(status_code=403, detail=ACCESS_DENIED)
     ip_adresa = _client_ip(request)
@@ -47,11 +52,13 @@ def guard(req: ChatRequest, request: Request) -> None:
 
 
 def _sse(podatoci: dict) -> str:
+    """Eden SSE red: data: {json}\\n\\n — frontendot go parsira vo ugdAgent.ts."""
     return f"data: {json.dumps(podatoci, ensure_ascii=False)}\n\n"
 
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
+    """Cel odgovor odednas (za curl/admin). Istiot pipeline kako stream."""
     try:
         turn = start_turn(req.question, req.session_id)
         planiran = plan(turn)
@@ -64,6 +71,7 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
         raise HTTPException(status_code=503, detail=GENERIC_ERROR) from None
 
     if isinstance(planiran, Ready):
+        # Namera / kes / nema dokumentacija — bez nov LLM povik.
         gotov = commit(turn, planiran.answer, planiran.sources, cacheable=planiran.cacheable)
         return ChatResponse(
             answer=gotov.answer,
@@ -89,6 +97,7 @@ def chat(req: ChatRequest, request: Request, _=Depends(guard)) -> ChatResponse:
 
 @router.post("/chat/stream")
 def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
+    """Token-po-token preku SSE. Nastani: sources → token* → [redact] → done | error."""
     try:
         turn = start_turn(req.question, req.session_id)
     except EmptyQuestion as greshka:
@@ -112,10 +121,12 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
                 "sources": gotov.sources,
                 "session_id": turn.session_id,
             })
+            # Ready odgovorot e cel — eden „token“ so celata poraka.
             yield _sse({"type": "token", "token": gotov.answer})
             yield _sse({"type": "done"})
             return
 
+        # Izvorite prvo — UI moze da gi pokaze dodeka stigaat tokenite.
         yield _sse({"type": "sources", "sources": planiran.sources, "session_id": turn.session_id})
         delovi: list[str] = []
         try:
@@ -131,12 +142,15 @@ def chat_stream(req: ChatRequest, request: Request, _=Depends(guard)):
             return
         gotov = commit(turn, "".join(delovi), planiran.sources, cacheable=True)
         if gotov.scrubbed:
-            # tokenite vekje zaminale — zameni go prikazot; istorijata e cista
+            # Tokenite vekje zaminale — zameni go prikazot; istorijata e cista.
             yield _sse({"type": "redact", "message": gotov.answer})
         yield _sse({"type": "done"})
 
     return StreamingResponse(
         stream(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # nginx da ne go baferira SSE-to
+        },
     )

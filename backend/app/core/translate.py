@@ -5,12 +5,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from app.config import settings
+from app.core.budget import LlmBudgetExceeded, consume_llm
 from app.core.generator import get_llm_client
 from app.core.language import ima_kirilica, is_mk_latin, transliterate_mk
 
 logger = logging.getLogger(__name__)
 
 def needs_translation(question: str) -> bool:
+    """True ako dokumentacijata e na MK, a prasanjeto e na drug jazik (ne mk-latinica)."""
     return not ima_kirilica(question) and not is_mk_latin(question)
 
 @dataclass
@@ -33,6 +35,8 @@ def translate_query(question: str) -> TranslationResult:
             return TranslationResult(translated=prevod, attempted=True)
         return TranslationResult(translated=None, attempted=False)
     try:
+        # Istiot kap kako generate/rewrite — inaku prevodot bi bil „besplaten“ LLM povik.
+        consume_llm()
         client = get_llm_client()
         resp = client.chat.completions.create(
             model=settings.llm_model,
@@ -46,6 +50,8 @@ def translate_query(question: str) -> TranslationResult:
         )
         translated = (resp.choices[0].message.content or "").strip()
         return TranslationResult(translated=translated or None, attempted=True)
+    except LlmBudgetExceeded:
+        raise
     except Exception as error:
         # Padnat prevod ne go prekinuva prasanjeto: prebaruvanjeto odi so originalot.
         logger.warning("Преводот на прашањето падна (модел=%s): %s", settings.llm_model, error)

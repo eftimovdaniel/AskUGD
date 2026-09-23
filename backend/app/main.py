@@ -1,3 +1,5 @@
+# FastAPI vlezna tocka: CORS, limiti, observability, warmup, health/ready/metrics.
+# Chat ruterot e vo app.api.chat; Qdrant/modeli se zagrevaat vo lifespan.
 from __future__ import annotations
 import asyncio
 import logging
@@ -16,6 +18,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 def _warmup() -> None:
+    """Vcitaj dense/sparse/rerank pri start — prviot student da ne ceka download."""
     try:
         list(vectorstore._get_dense().embed(["query: загревање"]))
         if settings.use_hybrid:
@@ -26,12 +29,14 @@ def _warmup() -> None:
         logger.warning("Warmup не успеа: %s", greshka)
 
 def _qdrant_remote_unprotected() -> bool:
+    """Daleku Qdrant bez API kluc = rizik; lokalni hostovi se OK."""
     host = (urlparse(settings.qdrant_url).hostname or "").lower()
     lokalni = {"localhost", "127.0.0.1", "::1", "qdrant"}
     return host not in lokalni and not settings.qdrant_api_key
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
+    """Pri start: upozorenija za produkcija + warmup vo thread (da ne go blokira event loop)."""
     if settings.cors_origin_list:
         logger.info("Chat е отворен за CORS_ORIGINS (без клуч во виџетот). /metrics бара API_ACCESS_KEY.")
         if not settings.api_access_key:
@@ -53,19 +58,20 @@ async def _lifespan(_: FastAPI):
     await asyncio.to_thread(_warmup)
     yield
 
-app = FastAPI(title="AskUGD", version="1.0.0",  #sozdavanje na fastapi aplikacija so naslov i verzija, objasnuvanje i lifespan
+app = FastAPI(title="AskUGD", version="1.0.0",
               description="RAG асистент за студенти на УГД", lifespan=_lifespan)
 
-_domeni = settings.cors_origin_list # zamenuvanje na dozvoleni domeni od env vo cors
-if _domeni: #dokolku se postaveni
-    app.add_middleware( # dodavam cors middleware
+_domeni = settings.cors_origin_list
+if _domeni:
+    app.add_middleware(
         CORSMiddleware,
-        allow_origins=_domeni,  # domeni koj smejta da pratat baranje
-        allow_credentials="*" not in _domeni,   #dozvoluvanje na kolacija
-        allow_methods=["GET", "POST"],  # samo get i post metodi ni se dozvoleni
-        allow_headers=["Content-Type", "X-API-Key"],    #koi headers smee da gi prati kliento
+        allow_origins=_domeni,
+        allow_credentials="*" not in _domeni,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "X-API-Key"],
     )
 
+# 64 KiB e dovolno za JSON chat; premnogu malo za base64 sliki (namerno — nema upload).
 _MAX_BODY_BYTES = 64 * 1024
 
 @app.middleware("http")
@@ -79,43 +85,47 @@ async def body_size_limit(request: Request, call_next) -> Response:
             )
     return await call_next(request)
 
-@app.middleware("http") #middleweate kod sto se izvrasuva okolu sekoe baranje
-async def observability_middleware(request: Request, call_next) -> Response:   #dojdoven request, call_next funkcija sto go izvrasuva vistinskiot endpoint
-    id_baranje = uuid.uuid4().hex[:12] #generiranje na unikaten id na request za sledenje 
-    request_id_var.set(id_baranje)  #postavuvanje vo contextvar, site baranja avtomatski go nosta ovoj id 
-    with Timer() as merac:  #pocetok na merenje na vremeto, timer avtomatski go presmetuva vremetraenjeto na izlez od blokot
-        try:    #obid za obrabokata na baranjeto
-            response = await call_next(request) # izvrasuvanje an endpointos, mora da imam await bidejki middleware e async
-        except Exception:  # ako nekade se sluci pad
+@app.middleware("http")
+async def observability_middleware(request: Request, call_next) -> Response:
+    """Request-ID, latencija, metriki i bezbednosni response headeri."""
+    id_baranje = uuid.uuid4().hex[:12]
+    request_id_var.set(id_baranje)
+    with Timer() as merac:
+        try:
+            response = await call_next(request)
+        except Exception:
             logger.exception("Необработена грешка")
-            metrics.record(getattr(merac, "duration", 0.0), error=True) # zapisuvanje na greskata vo metrikite
-            return Response(content='{"detail":"Внатрешна грешка"}',    # objasnuvanje 
-                            status_code=500, media_type="application/json", #statusen kod na greskata
+            metrics.record(getattr(merac, "duration", 0.0), error=True)
+            return Response(content='{"detail":"Внатрешна грешка"}',
+                            status_code=500, media_type="application/json",
                             headers={"X-Request-ID": id_baranje})
-    metrics.record(merac.duration, error=response.status_code >= 500)   # po obrabotka zapisuvame go vremetraenjeto, error = true ako statusto e 5XX
-    response.headers["X-Request-ID"] = id_baranje   #dodavanje na request_id vo odgovorot
-    response.headers["X-Content-Type-Options"] = "nosniff"# header za bezbednost sprecuvame da se pogoduva tip na sodrzina
-    response.headers["Cache-Control"] = "no-store"  # ne go kesirame odgovorot, 
+    metrics.record(merac.duration, error=response.status_code >= 500)
+    response.headers["X-Request-ID"] = id_baranje
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "no-store"
     logger.info("%s %s -> %d (%.0f ms)", request.method, request.url.path,response.status_code, merac.duration * 1000)
-    return response #vrati go odgovorot na klientot
+    return response
 
 app.include_router(chat_router)
 
-@app.get("/health") #liveness proverka dali prcesto e ziv
-async def health() -> dict: 
-    return {"status": "ok"} # dokolku imame odgovor se prikazuva deka serverot raboti
+@app.get("/health")
+async def health() -> dict:
+    """Liveness: procesot e ziv (ne proveruva Qdrant)."""
+    return {"status": "ok"}
 
-@app.get("/ready")  # proverka dali e ready da prima soobrakaj, baranja za obrabotka
+@app.get("/ready")
 def ready() -> Response:
-    if vectorstore.ready(): #proverka dali bazata e spremna 
-        return Response(content='{"status":"ready"}', media_type="application/json")    # dokolku e spremna vraka 200 ok 
-    return Response(content='{"status":"not ready"}', status_code=503, media_type="application/json")   # dokolku ne e spremna vraka 503 
+    """Readiness: Qdrant odgovara — Docker HEALTHCHECK / load balancer."""
+    if vectorstore.ready():
+        return Response(content='{"status":"ready"}', media_type="application/json")
+    return Response(content='{"status":"not ready"}', status_code=503, media_type="application/json")
 
-@app.get("/metrics")    #statistika
-async def get_metrics(request: Request) -> dict:   #prime request za da go proveri api klucot
+@app.get("/metrics")
+async def get_metrics(request: Request) -> dict:
+    """Latencija + kes statistika — samo so validen X-API-Key."""
     if not settings.api_access_key:
         raise HTTPException(status_code=403, detail="Metrics се затворени: постави API_ACCESS_KEY")
-    if not verify_api_key(request.headers.get("x-api-key")):   #zastita, metrikite na se javni
-        raise HTTPException(status_code=401, detail="Невалиден API клуч")   #dokolku ne se pojavi validen api kluc
+    if not verify_api_key(request.headers.get("x-api-key")):
+        raise HTTPException(status_code=401, detail="Невалиден API клуч")
     from app.core.cache import answer_cache
-    return {**metrics.snapshot(), **answer_cache.stats()}   # vrakame tekovna statistika
+    return {**metrics.snapshot(), **answer_cache.stats()}

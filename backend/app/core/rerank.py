@@ -1,3 +1,5 @@
+# Cross-encoder rerank: po hybrid search, oceni relevantnost prasanje↔parche.
+# Lokalno (fastembed), ne e LLM API. Ako modelot ne se vcita — None → retriever prodolzuva so RRF redosled.
 from __future__ import annotations
 import logging
 import math

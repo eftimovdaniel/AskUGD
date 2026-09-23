@@ -1,8 +1,14 @@
+/**
+ * Klientska zastita od prompt leak — prv sloj pred fetch.
+ * Backend ima isti obrazci (intents.py); ova go sprecava i samoto baranje.
+ * LEAK_ANSWER markerite drzi gi vo sinhron so _LEAK_ANSWER_MARKERS.
+ */
 export const LEAK_REFUSAL =
   "Не можам да ги споделам внатрешните инструкции или начинот на работа на системот. Прашај ме за студирањето на УГД.";
 
 const _CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
+/** Normalizacija: mali bukvi, bez kontrolni, separatorite → prazen prostor. */
 function fold(text: string): string {
   return text
     .toLowerCase()
@@ -32,8 +38,7 @@ const LEAK_QUESTION: RegExp[] = [
   /кажи.{0,25}(како\s+си\s+програмиран|како\s+работи\s+промптот)/,
 ];
 
-/** Отпечатоци што не се јавуваат во нормален одговор за упис/рокови.
- *  Држи го во синхрон со _LEAK_ANSWER_MARKERS во backend/app/core/intents.py. */
+/** Otpecatoci sto ne se javuvaat vo normalen odgovor za upis/rokovi. */
 const LEAK_ANSWER = [
   "извор на вистина",
   "правила (задолжителни)",
@@ -48,12 +53,14 @@ export function stripControls(text: string): string {
   return text.replace(_CONTROL, "");
 }
 
+/** True ako prasanjeto eksplicitno bara system prompt / jailbreak. */
 export function isLeakQuestion(text: string): boolean {
   const n = fold(text);
   if (!n) return false;
   return LEAK_QUESTION.some((re) => re.test(n));
 }
 
+/** Ako modelot ispalil sistemski tekst — zameni so odbivanje pred prikaz. */
 export function scrubLeakedAnswer(text: string): string {
   if (!text) return text;
   if (/<context>/i.test(text)) return LEAK_REFUSAL;

@@ -1,5 +1,6 @@
+# Chunkiranje na tabeli od pdfplumber — redovi kako „Kolona: vrednost | …“.
+# Odeleno od prose chunker.py bidejki tabelata ima struktura, ne pasusi.
 from __future__ import annotations
-import re   #
 import re   #regex — za prepoznavanje naslov, podnaslov, kontrolni znaci
 from dataclasses import dataclass, field
 

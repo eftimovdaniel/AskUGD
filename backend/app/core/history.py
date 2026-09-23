@@ -1,5 +1,5 @@
-#za da se ovozmoze follow up prasanje od studenti
-
+# Istorija na razgovor za follow-up („a rokовите?“).
+# In-memory po proces; so REDIS_URL — delen megju workers (isti session_id).
 from __future__ import annotations
 import json
 import logging
