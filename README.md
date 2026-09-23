@@ -24,5 +24,5 @@ only then lets the model compose an answer based solely on them, with the source
 | Backend | Python, FastAPI |
 | Vector database | Qdrant |
 | Embeddings / rerank | multilingual-e5-large, BM25, jina-reranker-v2 |
-| LLM | Groq (OpenAI-compatible client) |
+| LLM | Google Gemini and Claude API|
 | Frontend | TypeScript web widget |
