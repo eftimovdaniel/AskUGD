@@ -61,6 +61,7 @@ class Settings(BaseSettings):
     ocr_lang: str = "mkd+eng" #dokumentacijata e na makedonski 
     ocr_dpi: int = 300 #rezulucija pri renderiranje
     ocr_min_chars: int = 20 # pod ovoj prag stranicite se zemaat kako skenirani           
+    ocr_auto_rotate: bool = True # avtomatsko ispravuvanje na slikata
 
     @property
     def cors_origin_list(self) -> list[str]:
