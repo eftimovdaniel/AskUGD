@@ -54,7 +54,13 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 900
     cache_max_size: int = 1000
 
-    redis_url: str = ""              
+    redis_url: str = ""   
+
+    # OCR za skenirani PDF dokumenti pretstaveni kako slika, ama mora da se izvlece tekst od niv
+    use_ocr: bool = True
+    ocr_lang: str = "mkd+eng" #dokumentacijata e na makedonski 
+    ocr_dpi: int = 300 #rezulucija pri renderiranje
+    ocr_min_chars: int = 20 # pod ovoj prag stranicite se zemaat kako skenirani           
 
     @property
     def cors_origin_list(self) -> list[str]:
