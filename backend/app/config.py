@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     ocr_dpi: int = 300 #rezulucija pri renderiranje
     ocr_min_chars: int = 20 # pod ovoj prag stranicite se zemaat kako skenirani           
     ocr_auto_rotate: bool = True # avtomatsko ispravuvanje na slikata
+    ocr_preprocess: bool = True 
+    ocr_min_confidence: float = 60.0
+    ocr_failed_log = str = "ocr_failed.txt"
 
     @property
     def cors_origin_list(self) -> list[str]:

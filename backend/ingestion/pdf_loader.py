@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 import fitz  # PyMuPDF
 from app.config import settings
-from ingestion.ocr import ocr_page
+from ingestion.ocr import ocr_page, zabelezi_neuspeh
 
 logger = logging.getLogger(__name__)
 MAX_FILE_BYTES = 50 * 1024 * 1024   # 50 MB
@@ -46,27 +46,30 @@ def clean_text(text: str) -> str:  #cistenje na sumovite,nevidlivite znaci i paz
 
 def _extract(dokument, name: str) -> str:
     if dokument.needs_pass:
-        raise PdfError(f"'{name}' e заштитен со лозинка - прескокнато")
+        raise PdfError(f"'{name}' е заштитен со лозинка — прескокнат")
     if dokument.page_count > MAX_PAGES:
-        raise PdfError(f"'{name}' има {dokument.page_count} страници, но лимитот е {MAX_PAGES}")
+        raise PdfError(f"'{name}' има {dokument.page_count} страници (лимит {MAX_PAGES})")
     stranici = []
-    for page_no in range (dokument.page_count):
+    for page_no in range(dokument.page_count):
         try:
             page = dokument.load_page(page_no)
             surov = page.get_text("text")
             if settings.use_ocr and len(surov.strip()) < settings.ocr_min_chars:
-                ocr_tekst = ocr_page(page)
-                if ocr_tekst.strip():
+                ocr_tekst, doverba = ocr_page(page)
+                if ocr_tekst.strip() and doverba >= settings.ocr_min_confidence:
                     surov = ocr_tekst
-                    logger.info("OCR искористи: страница %d во '%s'", page_no + 1, name)
-        except Exception as greska: 
-            logger.warning("Прескокнати страници %d во '%s': %s", page_no + 1, name, greska)
+                    logger.info("OCR (доверба %.0f): страница %d во '%s'", doverba, page_no + 1, name)
+                elif ocr_tekst.strip():
+                    zabelezi_neuspeh(name, page_no + 1, doverba)
+                    surov = ""
+        except Exception as greshka:
+            logger.warning("Прескокната страница %d во '%s': %s", page_no + 1, name, greshka)
             continue
         iscisten = clean_text(surov)
         if iscisten:
             stranici.append(iscisten)
     if not stranici:
-        raise  PdfError(f"'{name}' не содржи извлечлив текст")
+        raise PdfError(f"'{name}' не содржи извлечлив текст")
     return "\n\n".join(stranici)
 
 def load_pdf(path: str | Path) -> str: #se koriste za vcituvanje na pdf dokumentite od diskot, se vika od run_ingestion za lokalnite pdf vo data/pdfs
