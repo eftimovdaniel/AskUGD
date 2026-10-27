@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.DS_Store
+venv/
+.venv/
+data/pdfs/
+data/ocr/cache/
+data/ocr/ocr_failed.txt
+data/ocr/za_pregled/*
+!data/ocr/za_pregled/.gitkeep

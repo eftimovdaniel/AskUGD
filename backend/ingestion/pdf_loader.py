@@ -1,0 +1,121 @@
+#Vadi cist tekst od PDF dokument so bibliotekata PyMuPDF. Go otvora PDF-ot, cita stranica po stranica i go rekonstruira tekstot vo citliv oblik, a potoa go cisti 
+#povtoruvackiot sum sto se javuva na sekoja stranica (zaglavija od tip 'Univerzitetski glasnik', 'Stranica 3/8', disclaimer-i) kako i nevidlivite karakteri sto ne se gledaat no go rasipuvaat 
+#prebaruvanjeto. Ima dve javni funkcii — edna za citanje od fajl na disk, druga za citanje direktno od bajti vo memorija (za PDF-ovi prezemeni od web, bez zapis na disk), 
+#a dvete ja delat istata logika za vadenje. Postuva limiti na golemina i broj stranici, gi preskoknuva zakluchenite (so lozinka) i ostetenite stranici bez da padne, i 
+#frla jasna greska ako PDF-ot nema izvlecliv tekst — sto najcesto znaci deka e skeniran dokument (slika), za koj bi trebalo OCR.
+
+from __future__ import annotations
+import logging
+import re
+from pathlib import Path
+import fitz  # PyMuPDF
+from app.config import settings
+from ingestion.ocr import ocr_page, zabelezi_neuspeh
+from ingestion.ocr_ops import page_image_coverage, treba_ocr
+
+logger = logging.getLogger(__name__)
+MAX_FILE_BYTES = 50 * 1024 * 1024   # 50 MB
+MAX_PAGES = 500
+
+#oznaki sabloni sto se pojavuvaat na site stranici od dokumentacija i ne treba da se zemat vo predvid, ne se vazni infomracii
+NOISE_PATTERNS = [
+    r"УНИВЕРЗИТЕТСКИ\s+ГЛАСНИК",    #univerz glasnik
+    r"Број\s+\d+,\s*\w+\s+\d{4}",   #broj na glasnikot kade \s+ eden ili poveke prazni mesta\d+ = eden ili povekje cifri, \s* = mozni prazni mesta, \w+ = zbor,  \d{4} = tocno 4 cifri (godina)
+    r"Ознака:\s*\S+",   #oznaka
+    r"Верзија:\s*\S+",  # verzija 
+    r"Страница\s*\d+\s*/\s*\d+",    #stranici dve cifri razdeleni so / i so prazni mesta pomegu niv
+    r"Овој документ е сопственост.*?авторски права\.",  # dislaimer za dokumentot 
+    r"Забрането е\s+фотографирање.*?запис\.",   #zabraneti se potografii zapisi za tekstot pomegu
+]
+_NOISE_RE = re.compile("|".join(NOISE_PATTERNS), re.IGNORECASE | re.DOTALL) #spoj na site sabloni vo eden regex, se kompjalira ednas 
+
+_INVISIBLE_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u00ad]") #regex sto faka nevidlivi karakteri
+
+class PdfError(Exception):  #klasa za greski pri vcitnuvanje na pdf
+    """Грешка при вчитување PDF (безбедна порака, без стек кон корисник)."""
+
+def clean_text(text: str) -> str:  #cistenje na sumovite,nevidlivite znaci i pazniot prostor od izvleceniot tekst, se povikuva na sekoja stranica pri nejzino vcituvanje  
+    text = _NOISE_RE.sub(" ", text) #zamena na site sumovi so prazni mesta 
+    text = _INVISIBLE_RE.sub("", text)  #otstranuvanje na nevidlivite karakteri celosno 
+    text = text.replace("\xa0", " ")    #zamena na tvrite prostori so obicno prazno mesto
+    text = "".join(znak for znak in text    #gradenje na tekstot od pocetok, samo so dozvolenite znaci
+                   if znak == "\n" or znak == "\t" or ord(znak) >= 32)  
+    text = re.sub(r"\n\s*\n+", "\n\n", text)   # poveketo prazni mesta se vo eden 
+    text = re.sub(r"[ \t]+", " ", text)        # visok na prazni mesta 
+    return text.strip() #otstranuvanje na prazni mesta/linii na pocetokot i na krajot na tekstot
+
+
+def _extract(dokument, name: str) -> str:
+    if dokument.needs_pass:
+        raise PdfError(f"'{name}' е заштитен со лозинка — прескокнат")
+    if dokument.page_count > MAX_PAGES:
+        raise PdfError(f"'{name}' има {dokument.page_count} страници (лимит {MAX_PAGES})")
+    stranici = []
+    ocr_strani = 0
+    for page_no in range(dokument.page_count):
+        try:
+            page = dokument.load_page(page_no)
+            surov = page.get_text("text") or ""
+            coverage = page_image_coverage(page)
+            if treba_ocr(surov, coverage):
+                ocr_tekst, doverba = ocr_page(page)
+                if ocr_tekst.strip() and doverba >= settings.ocr_min_confidence:
+                    ocr_strani += 1
+                    # mešana strana: zadrži dig. tekst + OCR; čist sken: samo OCR
+                    if len(surov.strip()) >= settings.ocr_min_chars:
+                        surov = f"{surov.strip()}\n\n{ocr_tekst.strip()}"
+                        logger.info(
+                            "OCR+текст (доверба %.0f, покриеност %.0f%%): страница %d во '%s'",
+                            doverba, coverage * 100, page_no + 1, name,
+                        )
+                    else:
+                        surov = ocr_tekst
+                        logger.info(
+                            "OCR (доверба %.0f): страница %d во '%s'",
+                            doverba, page_no + 1, name,
+                        )
+                elif ocr_tekst.strip():
+                    zabelezi_neuspeh(name, page_no + 1, doverba)
+                    if len(surov.strip()) < settings.ocr_min_chars:
+                        surov = ""
+        except Exception as greshka:
+            logger.warning("Прескокната страница %d во '%s': %s", page_no + 1, name, greshka)
+            continue
+        iscisten = clean_text(surov)
+        if iscisten:
+            stranici.append(iscisten)
+    if not stranici:
+        raise PdfError(f"'{name}' не содржи извлечлив текст")
+    if ocr_strani:
+        logger.info("OCR употребен на %d/%d страници во '%s'", ocr_strani, dokument.page_count, name)
+    return "\n\n".join(stranici)
+
+def load_pdf(path: str | Path) -> str: #se koriste za vcituvanje na pdf dokumentite od diskot, se vika od run_ingestion za lokalnite pdf vo data/pdfs
+    pateka = Path(path) #vlezot go pretvarame vo path objekt 
+    if not pateka.is_file():    #dokolku ne se pronajdeni. fajlovi na navedenata lokacija
+        raise PdfError(f"Фајлот не постои: {pateka.name}")
+    if pateka.stat().st_size > MAX_FILE_BYTES:  #stat().st_size ja dava goleminata vo bajti, ako nadmine 50mb
+        raise PdfError(f"'{pateka.name}' е поголем од {MAX_FILE_BYTES // (1024*1024)} MB")  #se odbiva, limitot se nadminuva
+    try:
+        with fitz.open(pateka) as dokument: #otvaranje na pdf, so with go zatvara na kraj so toa se osloboduva memorija
+            return _extract(dokument, pateka.name)  #vadenje na tekstot od pdf
+    except PdfError:    #ako se jave error
+        raise
+    except Exception as greshka:
+        raise PdfError(f"Не може да се отвори '{pateka.name}': {greshka}") from greshka
+
+def load_pdf_bytes(podatoci: bytes, name: str = "<web-pdf>") -> str:    #vcituvanje pdf od bajti vo memorijata, se koriste kaj web pdf fajlovite
+    if len(podatoci) > MAX_FILE_BYTES: #proverka na goleminata vo bajti
+        raise PdfError(f"'{name}' е поголем од {MAX_FILE_BYTES // (1024*1024)} MB") 
+    try:
+        with fitz.open(stream=podatoci, filetype="pdf") as dokument: # stream = podatoci se otvara preku bajtite vo memorijata so filetype se kazuva kade e pdf
+            return _extract(dokument, name)
+    except PdfError:    #pri pojava na greska se frla istata greska
+        raise
+    except Exception as greshka:
+        raise PdfError(f"Не може да се парсира '{name}': {greshka}") from greshka
+
+if __name__ == "__main__":
+    import sys
+    logging.basicConfig(level=logging.INFO)
+    print(load_pdf(sys.argv[1])[:2000])

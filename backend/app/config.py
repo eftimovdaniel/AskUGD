@@ -1,0 +1,85 @@
+from __future__ import annotations
+from functools import lru_cache
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict( env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
+
+    llm_api_key: str = ""                             
+    llm_base_url: str = "https://api.openai.com/v1"   
+    llm_model: str = "gpt-4o-mini"                    
+    llm_temperature: float = 0.1                 
+    max_answer_tokens: int = 1200
+    llm_retries: int = 3
+
+    #Qdrant 
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str | None = None            
+    qdrant_collection: str = "askugd"
+    use_hybrid: bool = True                      
+
+    # Embeddings / rerank 
+    dense_model: str = "intfloat/multilingual-e5-large"   # 1024 dim
+    dense_dim: int = 1024
+    sparse_model: str = "Qdrant/bm25"
+    rerank_model: str = "jinaai/jina-reranker-v2-base-multilingual"
+
+    #Retrieval
+    candidate_k: int = 20
+    top_k: int = 5
+    rerank_threshold: float = 0.15
+    max_retrieval_iterations: int = 3
+    use_translation: bool = True
+    use_query_rewrite: bool = True
+    max_context_chars: int = 12000
+    history_message_chars: int = 1200
+
+    # --- API безбедност ---
+    api_access_key: str | None = None
+    session_secret: str = ""
+    cors_origins: str = ""
+    rate_limit: int = 20
+    rate_limit_ip: int = 300
+    trust_proxy_headers: bool = False
+    trusted_proxy_hops: int = 1
+    max_question_chars: int = 1000
+    llm_max_calls_per_hour: int = 0
+    llm_max_calls_per_day: int = 0
+
+    #Историја на разговор
+    history_ttl_seconds: int = 3600
+    history_max_turns: int = 6
+
+    cache_ttl_seconds: int = 900
+    cache_max_size: int = 1000
+
+    redis_url: str = ""   
+
+    # OCR za skenirani PDF dokumenti pretstaveni kako slika, ama mora da se izvlece tekst od niv
+    use_ocr: bool = True
+    ocr_lang: str = "mkd+eng" #dokumentacijata e na makedonski 
+    ocr_dpi: int = 300 #rezulucija pri renderiranje
+    ocr_min_chars: int = 20 # pod ovoj prag stranicite se zemaat kako skenirani           
+    ocr_auto_rotate: bool = True # avtomatsko ispravuvanje na slikata
+    ocr_preprocess: bool = True 
+    ocr_min_confidence: float = 60.0
+<<<<<<< Updated upstream
+    ocr_failed_log = str = "ocr_failed.txt"
+=======
+    ocr_failed_log: str = "data/ocr/ocr_failed.txt"
+    ocr_split_pages: bool = True
+    ocr_cache_dir: str = "data/ocr/cache"
+    ocr_review_dir: str = "data/ocr/za_pregled"
+    ocr_image_min_coverage: float = 0.25  # mešana strana: dig. tekst + golema slika
+    ocr_quarantine_pii: bool = True  # odluki so iminja → za_pregled, ne vo Qdrant
+>>>>>>> Stashed changes
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+settings = get_settings()
