@@ -214,8 +214,6 @@ def _ingest_crawled_pdf(adresa: str, podatoci: bytes, statistika: Stats, dry_run
         statistika.fail(adresa, str(greshka))   #se oznacuva kako neuspeh
 
 
-<<<<<<< Updated upstream
-=======
 def _ingest_slika(adresa: str, podatoci: bytes, statistika: Stats, dry_run: bool) -> None:
     from ingestion.ocr import ocr_bytes, zabelezi_neuspeh
     from ingestion.pdf_loader import clean_text
@@ -243,7 +241,6 @@ def _ingest_slika(adresa: str, podatoci: bytes, statistika: Stats, dry_run: bool
     logger.info("[+] (слика) %s: %d парчиња", adresa, broj_parchinja)
 
 
->>>>>>> Stashed changes
 def _ingest_page(adresa: str, naslov: str, tekst: str, statistika: Stats, dry_run: bool) -> None:   #za html stranica
     parchinja = chunk_document(tekst, source=adresa, doc_type="web", title=naslov, url=adresa)  #isecoci od web sto se dobivat
     broj_parchinja = _replace_source(parchinja, adresa, dry_run)   

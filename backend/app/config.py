@@ -64,16 +64,12 @@ class Settings(BaseSettings):
     ocr_auto_rotate: bool = True # avtomatsko ispravuvanje na slikata
     ocr_preprocess: bool = True 
     ocr_min_confidence: float = 60.0
-<<<<<<< Updated upstream
-    ocr_failed_log = str = "ocr_failed.txt"
-=======
     ocr_failed_log: str = "data/ocr/ocr_failed.txt"
     ocr_split_pages: bool = True
     ocr_cache_dir: str = "data/ocr/cache"
     ocr_review_dir: str = "data/ocr/za_pregled"
     ocr_image_min_coverage: float = 0.25  # mešana strana: dig. tekst + golema slika
     ocr_quarantine_pii: bool = True  # odluki so iminja → za_pregled, ne vo Qdrant
->>>>>>> Stashed changes
 
     @property
     def cors_origin_list(self) -> list[str]:

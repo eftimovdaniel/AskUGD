@@ -1,6 +1,5 @@
-# Lokalna baza za testiranje:
-#   docker compose up -d          -> startuva Qdrant na http://127.0.0.1:6333
-#   docker compose --profile redis up -d
+# Lokalna baza za testiranje / prod-like:
+#   docker compose up -d          -> Qdrant :6333 + Redis :6379
 #   docker compose down           -> zapira (podatocite ostanuvaat vo volume)
 #   docker compose down -v        -> zapira + BRISHE sè
 # Qdrant/Redis se vrzani samo na localhost — ne na LAN/internet.
@@ -17,8 +16,10 @@ services:
     image: redis:7-alpine
     ports:
       - "127.0.0.1:6379:6379"
-    profiles: ["redis"]
+    volumes:
+      - redis_data:/data
     restart: unless-stopped
 
 volumes:
   qdrant_data:
+  redis_data:
