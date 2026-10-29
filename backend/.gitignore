@@ -5,6 +5,7 @@ __pycache__/
 venv/
 .venv/
 data/pdfs/
+data/pdfs/from_api/
 data/ocr/cache/
 data/ocr/ocr_failed.txt
 data/ocr/za_pregled/*

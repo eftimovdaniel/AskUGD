@@ -54,7 +54,12 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 900
     cache_max_size: int = 1000
 
-    redis_url: str = ""   
+    redis_url: str = ""
+
+    # API od kade se vlecat dokumenti (uni baza) — prazno dodeka nema endpoint
+    doc_api_url: str = ""          # npr. https://api.ugd.edu.mk
+    doc_api_token: str = ""        # Bearer token
+    doc_api_timeout: float = 60.0
 
     # OCR za skenirani PDF dokumenti pretstaveni kako slika, ama mora da se izvlece tekst od niv
     use_ocr: bool = True
