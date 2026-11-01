@@ -1,5 +1,7 @@
 # AskUGD
 
+**Notice:** Due to privacy/administrative reasons, the original source repository is not publicly accessible. This repository serves as the primary code distribution containing the full codebase, including all production-ready changes and active updates.
+
 A RAG-based assistant that answers students' questions about Goce Delčev University –
 Štip, grounded strictly in official documents.
 
@@ -7,7 +9,6 @@ Large language models are fluent, but when they do not know something they tend 
 AskUGD addresses this with Retrieval-Augmented Generation: it first searches the university's official documents, retrieves the most relevant passages, and
 only then lets the model compose an answer based solely on them, with the source cited.
 
-**Notice:** Due to privacy/administrative reasons, the original source repository is not publicly accessible. This repository serves as the primary code distribution containing the full codebase, including all production-ready changes and active updates.
 
 ## Features
 
