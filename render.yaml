@@ -1,0 +1,37 @@
+# Render Blueprint (repo root)
+# Dashboard → New → Blueprint → овој repo
+
+services:
+  - type: web
+    name: askugd-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.openai.com/v1
+      - key: LLM_MODEL
+        value: gpt-4o-mini
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: askugd
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false
+      - key: LLM_MAX_CALLS_PER_HOUR
+        value: "100"
+      - key: LLM_MAX_CALLS_PER_DAY
+        value: "500"

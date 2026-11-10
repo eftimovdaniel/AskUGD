@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 RUN useradd -m appuser && mkdir -p /models && chown appuser /models
 USER appuser
+# Render/Railway postavuvaat $PORT; lokalno default 8000.
 EXPOSE 8000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=120s \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=3)"
-CMD ["sh", "-c", "gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w ${WEB_CONCURRENCY:-2} -b 0.0.0.0:8000 --timeout 120 --graceful-timeout 30"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s \
+    CMD python -c "import os,urllib.request; p=os.environ.get('PORT','8000'); urllib.request.urlopen(f'http://127.0.0.1:{p}/health', timeout=3)"
+CMD ["sh", "-c", "gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w ${WEB_CONCURRENCY:-1} -b 0.0.0.0:${PORT:-8000} --timeout 120 --graceful-timeout 30"]
