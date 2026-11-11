@@ -1,0 +1,11 @@
+.git
+frontend
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pdf
+backend/data
+backend/.env
+opsti
+vtor ciklus
+tret ciklus

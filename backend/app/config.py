@@ -6,9 +6,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict( env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
-    llm_api_key: str = ""                             
-    llm_base_url: str = "https://api.openai.com/v1"   
-    llm_model: str = "gpt-4o-mini"                    
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.groq.com/openai/v1"
+    llm_model: str = "llama-3.3-70b-versatile"                    
     llm_temperature: float = 0.1                 
     max_answer_tokens: int = 1200
     llm_retries: int = 3
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     #Qdrant 
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None            
-    qdrant_collection: str = "askugd"
+    qdrant_collection: str = "AskUGD"
     use_hybrid: bool = True                      
 
     # Embeddings / rerank 

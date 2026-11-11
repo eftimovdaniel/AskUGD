@@ -3,6 +3,7 @@
 from __future__ import annotations
 import asyncio
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from urllib.parse import urlparse
@@ -49,6 +50,12 @@ async def _lifespan(_: FastAPI):
         logger.warning("SESSION_SECRET не е поставен — session_id не е потпишан.")
     if not settings.redis_url:
         logger.warning("REDIS_URL не е поставен — за 2+ workers историјата и rate limit не се делат.")
+    workers = os.environ.get("WEB_CONCURRENCY", "1")
+    if workers.isdigit() and int(workers) > 1:
+        logger.warning(
+            "WEB_CONCURRENCY=%s — секој worker ги вчитува моделите одново. За бесплатен план стави 1.",
+            workers,
+        )
     if not settings.trust_proxy_headers:
         logger.info("TRUST_PROXY_HEADERS=false. Зад load balancer стави true и TRUSTED_PROXY_HOPS.")
     if not settings.llm_max_calls_per_hour and not settings.llm_max_calls_per_day:
