@@ -1,6 +1,6 @@
 # AskUGD
 
-**Hugging Face**
+Hugging Face
 ---
 title: AskUGD
 emoji: 🚀
