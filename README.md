@@ -44,5 +44,3 @@ only then lets the model compose an answer based solely on them, with the source
 | Embeddings / rerank | multilingual-e5-large, BM25, jina-reranker-v2 |
 | LLM | Google Gemini and Claude API|
 | Frontend | TypeScript web widget |
-
-
