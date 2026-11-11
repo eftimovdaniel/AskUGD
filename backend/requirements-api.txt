@@ -1,0 +1,12 @@
+# Samo chat API. PDF/OCR se vo requirements.txt i ne vleguvaat vo slikata za host.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+gunicorn>=22.0
+pydantic>=2.7
+pydantic-settings>=2.3
+
+qdrant-client>=1.12
+fastembed>=0.4
+openai>=1.40
+redis>=5.0
+langdetect
