@@ -1,3 +1,13 @@
+---
+title: AskUGD
+emoji: 🎓
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+app_file: app.py
+suggested_hardware: zero-a10g
+---
+
 # AskUGD
 
 **Notice:** Due to privacy/administrative reasons, the original source repository is not publicly accessible. This repository serves as the primary code distribution containing the full codebase, including all production-ready changes and active updates.
