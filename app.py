@@ -83,5 +83,29 @@ with gr.Blocks(title="AskUGD") as demo:
     prasanje = gr.Textbox(label="Прашање", placeholder="На пример: колку чини втор циклус?")
     prasanje.submit(odgovori, [prasanje, chat, sesija], [chat, prasanje, sesija])
 
+# Локалниот виџет на :5500 го вика истиот /chat/stream. Рутите се закачуваат
+# пред Gradio да го пушти серверот, за Space-от да ги има кога ќе стартува.
+import gradio.routes as _gradio_routes
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.chat import router as _chat_router
+
+_staro_create_app = _gradio_routes.App.create_app
+
+def _create_app_so_chat(*args, **kwargs):
+    sozdaden = _staro_create_app(*args, **kwargs)
+    sozdaden.include_router(_chat_router)
+    broj = len(_chat_router.routes)
+    ruti = sozdaden.router.routes
+    sozdaden.router.routes = ruti[-broj:] + ruti[:-broj]
+    sozdaden.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "X-API-Key"],
+    )
+    return sozdaden
+
+_gradio_routes.App.create_app = _create_app_so_chat
+
 if __name__ == "__main__":
     demo.launch()
