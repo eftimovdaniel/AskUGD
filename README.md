@@ -1,3 +1,17 @@
+---
+title: AskUGD
+emoji: 🚀
+colorFrom: pink
+colorTo: yellow
+sdk: gradio
+sdk_version: 6.31.0
+python_version: '3.12'
+app_file: app.py
+pinned: false
+---
+
+Toa e upatstvo za Hugging Face, ne za studentite. Od nego znae deka stranicata e Gradio, deka treba da go pusti fajlot `app.py`, i deka Python e 3.12. Bez nego Space-ot ne znae sto da startuva.
+
 # AskUGD
 
 **Notice:** Due to privacy/administrative reasons, the original source repository is not publicly accessible. This repository serves as the primary code distribution containing the full codebase, including all production-ready changes and active updates.
