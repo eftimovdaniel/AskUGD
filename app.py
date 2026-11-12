@@ -1,8 +1,13 @@
 # Hugging Face Space (Gradio + ZeroGPU). Моделите се ONNX и работат на CPU.
 # Една GPU-функција мора да постои за бесплатниот ZeroGPU, ама чатот не ја вика.
 from __future__ import annotations
+import os
 import sys
 from pathlib import Path
+
+# Gradio 6 во SSR пушта Node пред Python. Node ја сервира страницата и
+# /chat/stream никогаш не стигнува до FastAPI (прелистувачот добива 405).
+os.environ["GRADIO_SSR_MODE"] = "false"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "backend"))
 
@@ -94,12 +99,14 @@ _staro_create_app = _gradio_routes.App.create_app
 def _create_app_so_chat(*args, **kwargs):
     sozdaden = _staro_create_app(*args, **kwargs)
     sozdaden.include_router(_chat_router)
-    broj = len(_chat_router.routes)
-    ruti = sozdaden.router.routes
-    sozdaden.router.routes = ruti[-broj:] + ruti[:-broj]
     sozdaden.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
+        allow_origins=[
+            "http://127.0.0.1:5500",
+            "http://localhost:5500",
+            "https://eftimovdaniel-askugd-frontend.hf.space",
+            "https://eftimovdaniel-askugd-frontend.static.hf.space",
+        ],
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "X-API-Key"],
     )
@@ -108,4 +115,4 @@ def _create_app_so_chat(*args, **kwargs):
 _gradio_routes.App.create_app = _create_app_so_chat
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(ssr_mode=False)
